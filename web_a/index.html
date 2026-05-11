@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A — テレプロンプター</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #111;
+      font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+      padding: 2rem;
+      min-height: 100vh;
+    }
+    #status {
+      font-size: 0.75rem;
+      color: #555;
+      margin-bottom: 2rem;
+    }
+    #prompter {
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+    .line .original   { font-size: 1.4rem; line-height: 1.4; }
+    .line .translated { font-size: 2rem;   line-height: 1.5; }
+    .line.history .original   { color: #555; }
+    .line.history .translated { color: #fff; }
+    .line.interim .original   { color: #444; }
+    .line.interim .translated { color: #aaa; }
+  </style>
+</head>
+<body>
+  <div id="status">接続中...</div>
+  <div id="prompter"></div>
+
+  <script>
+    const prompter   = document.getElementById('prompter');
+    const statusEl   = document.getElementById('status');
+    const MAX_HISTORY = 10;
+
+    function getOrCreateInterim() {
+      let interim = prompter.querySelector('.line.interim');
+      if (!interim) {
+        interim = document.createElement('div');
+        interim.className = 'line interim';
+        interim.innerHTML = '<div class="original"></div><div class="translated"></div>';
+        prompter.appendChild(interim);
+      }
+      return interim;
+    }
+
+    const ws = new WebSocket('ws://localhost:8000/captions/to_A');
+
+    ws.onopen  = () => { statusEl.textContent = '接続済み'; };
+    ws.onclose = () => { statusEl.textContent = '切断 — ページを再読み込みしてください'; };
+    ws.onerror = () => { statusEl.textContent = 'エラー'; };
+
+    ws.onmessage = (e) => {
+      const { original, translated, is_final } = JSON.parse(e.data);
+
+      const interim = getOrCreateInterim();
+      interim.querySelector('.original').textContent   = original;
+      interim.querySelector('.translated').textContent = translated;
+
+      if (is_final) {
+        interim.classList.replace('interim', 'history');
+
+        const histories = prompter.querySelectorAll('.line.history');
+        if (histories.length > MAX_HISTORY) {
+          histories[0].remove();
+        }
+
+        const next = document.createElement('div');
+        next.className = 'line interim';
+        next.innerHTML = '<div class="original"></div><div class="translated"></div>';
+        prompter.appendChild(next);
+      }
+
+      window.scrollTo(0, document.body.scrollHeight);
+    };
+  </script>
+</body>
+</html>

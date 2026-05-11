@@ -4,3 +4,6 @@ websockets
 sounddevice
 numpy
 python-dotenv
+aiofiles
+soundcard
+httpx
