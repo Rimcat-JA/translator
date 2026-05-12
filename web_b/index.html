@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>B — 操作画面</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #1a1a1a;
+      color: #ccc;
+      font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+      font-size: 1rem;
+      padding: 1.5rem;
+    }
+    h2 { color: #eee; font-size: 1.1rem; margin-bottom: 1.4rem; }
+    .ctrl-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.9rem;
+    }
+    .label { color: #666; width: 5.5rem; flex-shrink: 0; font-size: 0.9rem; }
+    select {
+      background: #252525;
+      color: #ccc;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 0.3rem 0.5rem;
+      font-size: 0.9rem;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    select:focus { outline: none; border-color: #555; }
+    .a-settings {
+      font-size: 0.85rem;
+      color: #555;
+      margin-bottom: 0.9rem;
+    }
+    .a-settings span { color: #666; }
+    #status-bar {
+      font-size: 0.75rem;
+      color: #555;
+      background: #222;
+      border-radius: 4px;
+      padding: 0.5rem 0.75rem;
+      margin-top: 0.5rem;
+      margin-bottom: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .stt-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .stt-dot.connected    { background: #22c55e; }
+    .stt-dot.disconnected { background: #ef4444; }
+    .stt-dot.connecting   { background: #eab308; }
+    #reconnect-panel {
+      display: none;
+      background: #2a1f00;
+      border: 1px solid #7c5200;
+      border-radius: 4px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.8rem;
+      font-size: 0.85rem;
+    }
+    #reconnect-panel .warn-msg { color: #fbbf24; margin-bottom: 0.5rem; }
+    #reconnect-panel .err-msg  { color: #f87171; margin-top: 0.4rem; font-size: 0.8rem; min-height: 1em; }
+    #btn-restart {
+      padding: 0.3rem 0.9rem;
+      background: #92400e;
+      border: 1px solid #b45309;
+      border-radius: 4px;
+      color: #fde68a;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    #btn-restart:hover { background: #b45309; }
+    .divider {
+      font-size: 0.75rem;
+      color: #444;
+      border-bottom: 1px solid #2a2a2a;
+      padding-bottom: 0.4rem;
+      margin-bottom: 0.9rem;
+    }
+    #history {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      max-height: 55vh;
+      overflow-y: auto;
+    }
+    .utt { font-size: 1rem; line-height: 1.5; padding: 0.15rem 0; }
+    .utt.interim { color: #444; }
+    .utt.final .orig  { color: #888; }
+    .utt.final .trans { color: #eee; }
+    .utt .arrow { color: #333; margin: 0 0.4rem; }
+    .utt.interim .arrow { color: #333; }
+  </style>
+</head>
+<body>
+  <h2>B 操作画面</h2>
+
+  <div class="ctrl-row">
+    <span class="label">話す言語:</span>
+    <select id="sel-lang" onchange="setLanguage(this.value)"></select>
+  </div>
+
+  <div class="a-settings">
+    A設定 — 翻訳: <span id="a-trans-label">—</span> / 出力: <span id="a-target-label">—</span>
+  </div>
+
+  <div id="status-bar">
+    <span id="stt-dot" class="stt-dot connecting"></span>
+    <span id="status-text">接続中...</span>
+  </div>
+
+  <div id="reconnect-panel">
+    <div class="warn-msg">STT が切断されました。再接続してください。</div>
+    <button id="btn-restart" onclick="sendRestart()">再接続</button>
+    <div class="err-msg" id="restart-err"></div>
+  </div>
+
+  <div class="divider">── 自分が話した内容 ──</div>
+  <div id="history"></div>
+
+  <script>
+    const historyEl      = document.getElementById('history');
+    const statusText     = document.getElementById('status-text');
+    const sttDot         = document.getElementById('stt-dot');
+    const reconnectPanel = document.getElementById('reconnect-panel');
+    const restartErr     = document.getElementById('restart-err');
+    const selLang        = document.getElementById('sel-lang');
+    const aTransLabel    = document.getElementById('a-trans-label');
+    const aTargetLabel   = document.getElementById('a-target-label');
+    const MAX_FINAL      = 10;
+
+    let supportedLanguages = [];
+    let currentLang        = 'zh';
+    let currentUttId       = null;
+    let currentRow         = null;
+    let currentFinal       = false;
+
+    function langName(code) {
+      const l = supportedLanguages.find(x => x.code === code);
+      return l ? l.name_ja : code;
+    }
+
+    function populateLangSelect(languages, selectedCode) {
+      selLang.innerHTML = '';
+      for (const lang of languages) {
+        const opt = document.createElement('option');
+        opt.value = lang.code;
+        opt.textContent = lang.name_ja;
+        selLang.appendChild(opt);
+      }
+      selLang.value = selectedCode;
+    }
+
+    function updateASettings(translationEnabled, targetLanguage) {
+      aTransLabel.textContent  = translationEnabled ? 'ON' : 'OFF';
+      aTargetLabel.textContent = langName(targetLanguage);
+    }
+
+    function setSttStatus(status, errorMsg) {
+      sttDot.className = 'stt-dot ' + status;
+      if (status === 'disconnected') {
+        reconnectPanel.style.display = 'block';
+        restartErr.textContent = '';
+      } else if (status === 'connected') {
+        reconnectPanel.style.display = 'none';
+        restartErr.textContent = '';
+      } else if (status === 'error') {
+        restartErr.textContent = errorMsg || 'エラーが発生しました';
+        sttDot.className = 'stt-dot disconnected';
+      }
+    }
+
+    function updateStatusText() {
+      statusText.textContent = `接続済み / 言語: ${langName(currentLang)}`;
+    }
+
+    function setLanguage(code) {
+      if (ctrlWs.readyState === WebSocket.OPEN)
+        ctrlWs.send(JSON.stringify({ type: 'set_language', value: code }));
+    }
+
+    function sendRestart() {
+      if (ctrlWs.readyState === WebSocket.OPEN) {
+        setSttStatus('connecting');
+        restartErr.textContent = '';
+        ctrlWs.send(JSON.stringify({ type: 'restart' }));
+      }
+    }
+
+    function trimFinals() {
+      const finals = historyEl.querySelectorAll('.utt.final');
+      if (finals.length > MAX_FINAL) finals[0].remove();
+    }
+
+    function wsUrl(path) {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return proto + '//' + window.location.host + path;
+    }
+
+    const ctrlWs = new WebSocket(wsUrl('/control/B'));
+
+    ctrlWs.onopen = () => {
+      ctrlWs.send(JSON.stringify({ type: 'get_state' }));
+    };
+
+    ctrlWs.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'state') {
+        if (msg.supported_languages && msg.supported_languages.length > 0) {
+          supportedLanguages = msg.supported_languages;
+          populateLangSelect(supportedLanguages, msg.language);
+        } else {
+          selLang.value = msg.language;
+        }
+        currentLang = msg.language;
+        updateASettings(msg.translation_enabled, msg.target_language);
+        setSttStatus(msg.stt_connected ? 'connected' : 'disconnected');
+        updateStatusText();
+      } else if (msg.type === 'stt_status') {
+        if (msg.value === 'connected') {
+          setSttStatus('connected');
+        } else if (msg.value === 'disconnected') {
+          setSttStatus('disconnected');
+        } else if (msg.value === 'error') {
+          setSttStatus('error', msg.message);
+        }
+      }
+    };
+
+    ctrlWs.onclose = () => {
+      statusText.textContent = '切断 — ページを再読み込みしてください';
+      sttDot.className = 'stt-dot disconnected';
+    };
+
+    const capWs = new WebSocket(wsUrl('/captions/to_A'));
+
+    capWs.onmessage = (e) => {
+      const { kind, utterance_id, text, is_final } = JSON.parse(e.data);
+
+      if (kind === 'original') {
+        if (utterance_id !== currentUttId) {
+          if (currentRow && !currentFinal) {
+            currentRow.classList.replace('interim', 'final');
+            trimFinals();
+          }
+          const el = document.createElement('div');
+          el.className = 'utt interim';
+          el.innerHTML = '<span class="orig"></span><span class="arrow">→</span><span class="trans"></span>';
+          historyEl.appendChild(el);
+          currentRow   = el;
+          currentUttId = utterance_id;
+          currentFinal = false;
+        }
+        currentRow.querySelector('.orig').textContent = text;
+        if (is_final) {
+          currentRow.classList.replace('interim', 'final');
+          trimFinals();
+          currentFinal = true;
+        }
+      } else if (kind === 'translated') {
+        if (utterance_id === currentUttId && currentRow) {
+          currentRow.querySelector('.trans').textContent = text;
+        }
+        if (is_final && currentFinal) {
+          currentRow   = null;
+          currentUttId = null;
+          currentFinal = false;
+        }
+      }
+
+      historyEl.scrollTop = historyEl.scrollHeight;
+    };
+  </script>
+</body>
+</html>

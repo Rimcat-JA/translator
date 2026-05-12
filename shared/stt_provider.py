@@ -47,46 +47,73 @@ class DummySTTProvider(STTProvider):
 class GladiaSTTProvider(STTProvider):
     _INIT_URL = "https://api.gladia.io/v2/live"
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, on_disconnect=None):
         self._api_key = api_key
+        self._language = "zh"
         self._ws = None
         self._result_queue: asyncio.Queue = asyncio.Queue()
         self._recv_task: Optional[asyncio.Task] = None
+        self._connection_lock = asyncio.Lock()
+        self._on_disconnect = on_disconnect
+        self._connected = False
+        self._shutdown_requested = False
+
+    @property
+    def connected(self) -> bool:
+        return self._connected
 
     async def start(self):
         await self._connect()
 
+    async def restart(self):
+        await self._connect()
+
+    async def reconfigure(self, language: str):
+        self._language = language
+        await self._connect()
+
     async def _connect(self):
-        if self._recv_task and not self._recv_task.done():
-            self._recv_task.cancel()
-        if self._ws and self._ws.close_code is None:
-            await self._ws.close()
+        async with self._connection_lock:
+            self._shutdown_requested = True
+            if self._recv_task and not self._recv_task.done():
+                self._recv_task.cancel()
+                try:
+                    await self._recv_task
+                except (asyncio.CancelledError, Exception):
+                    pass
+            if self._ws and self._ws.close_code is None:
+                try:
+                    await self._ws.close()
+                except Exception:
+                    pass
+            self._shutdown_requested = False
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                self._INIT_URL,
-                headers={
-                    "x-gladia-key": self._api_key,
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "encoding": "wav/pcm",
-                    "sample_rate": 16000,
-                    "bit_depth": 16,
-                    "channels": 1,
-                    "language_config": {
-                        "languages": ["zh"],
-                        "code_switching": False,
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    self._INIT_URL,
+                    headers={
+                        "x-gladia-key": self._api_key,
+                        "Content-Type": "application/json",
                     },
-                    "messages_config": {"receive_partial_transcripts": True},
-                },
-            )
-            resp.raise_for_status()
-            ws_url = resp.json()["url"]
+                    json={
+                        "encoding": "wav/pcm",
+                        "sample_rate": 16000,
+                        "bit_depth": 16,
+                        "channels": 1,
+                        "language_config": {
+                            "languages": [self._language],
+                            "code_switching": False,
+                        },
+                        "messages_config": {"receive_partial_transcripts": True},
+                    },
+                )
+                resp.raise_for_status()
+                ws_url = resp.json()["url"]
 
-        self._ws = await websockets.connect(ws_url)
-        self._recv_task = asyncio.create_task(self._recv_loop())
-        logger.info(f"Gladia session started")
+            self._ws = await websockets.connect(ws_url)
+            self._recv_task = asyncio.create_task(self._recv_loop())
+            self._connected = True
+            logger.info(f"Gladia session started  language={self._language}")
 
     async def _recv_loop(self):
         try:
@@ -106,32 +133,39 @@ class GladiaSTTProvider(STTProvider):
                 })
         except Exception as e:
             logger.error(f"Gladia recv error: {e}")
+        finally:
+            self._connected = False
+            if self._on_disconnect and not self._shutdown_requested:
+                try:
+                    await self._on_disconnect()
+                except Exception as e:
+                    logger.error(f"on_disconnect callback error: {e}")
 
     async def transcribe(self, audio_chunk: bytes) -> Optional[dict]:
         if self._ws is None or self._ws.close_code is not None:
-            logger.warning("Gladia WS closed, reconnecting...")
-            try:
-                await self._connect()
-            except Exception:
-                return None
-
+            return None
         try:
             await self._ws.send(audio_chunk)
         except Exception as e:
             logger.error(f"Gladia send error: {e}")
             return None
-
         try:
             return self._result_queue.get_nowait()
         except asyncio.QueueEmpty:
             return None
 
     async def close(self):
-        if self._ws and not self._ws.closed:
-            try:
-                await self._ws.send(json.dumps({"type": "stop_recording"}))
-                await self._ws.close()
-            except Exception:
-                pass
-        if self._recv_task:
-            self._recv_task.cancel()
+        async with self._connection_lock:
+            self._shutdown_requested = True
+            if self._recv_task and not self._recv_task.done():
+                self._recv_task.cancel()
+                try:
+                    await self._recv_task
+                except (asyncio.CancelledError, Exception):
+                    pass
+            if self._ws and self._ws.close_code is None:
+                try:
+                    await self._ws.send(json.dumps({"type": "stop_recording"}))
+                    await self._ws.close()
+                except Exception:
+                    pass

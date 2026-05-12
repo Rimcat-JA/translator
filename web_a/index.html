@@ -9,72 +9,212 @@
     body {
       background: #111;
       font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
-      padding: 2rem;
+      padding: 1.5rem 2rem 2rem;
       min-height: 100vh;
     }
+    #ctrl-bar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      background: #1a1a1a;
+      border-radius: 6px;
+      padding: 0.6rem 1rem;
+      margin-bottom: 1.2rem;
+    }
+    .ctrl-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .ctrl-label {
+      color: #555;
+      font-size: 0.8rem;
+      white-space: nowrap;
+    }
+    select {
+      background: #252525;
+      color: #ccc;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.85rem;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    select:focus { outline: none; border-color: #555; }
+    button.toggle {
+      padding: 0.25rem 0.75rem;
+      border: 1px solid #333;
+      border-radius: 4px;
+      background: #252525;
+      color: #555;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    button.toggle.active {
+      background: #1d4ed8;
+      border-color: #3b82f6;
+      color: #fff;
+    }
+    .b-lang-display {
+      color: #444;
+      font-size: 0.8rem;
+      white-space: nowrap;
+    }
+    .b-lang-display span { color: #666; }
     #status {
       font-size: 0.75rem;
-      color: #555;
-      margin-bottom: 2rem;
+      color: #333;
+      margin-bottom: 1.5rem;
     }
     #prompter {
       display: flex;
       flex-direction: column;
       gap: 1.2rem;
     }
-    .line .original   { font-size: 1.4rem; line-height: 1.4; }
-    .line .translated { font-size: 2rem;   line-height: 1.5; }
-    .line.history .original   { color: #555; }
+    .line .original,
+    .line .translated { font-size: 2rem; line-height: 1.5; }
+    .line.history .original,
     .line.history .translated { color: #fff; }
-    .line.interim .original   { color: #444; }
-    .line.interim .translated { color: #aaa; }
+    .line.interim .original,
+    .line.interim .translated { color: #444; }
   </style>
 </head>
 <body>
+  <div id="ctrl-bar">
+    <div class="ctrl-group">
+      <span class="ctrl-label">出力言語:</span>
+      <select id="sel-target" onchange="setTargetLanguage(this.value)"></select>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">翻訳:</span>
+      <button id="btn-trans-on"  class="toggle" onclick="setTranslation(true)">ON</button>
+      <button id="btn-trans-off" class="toggle" onclick="setTranslation(false)">OFF</button>
+    </div>
+    <div class="b-lang-display">B言語: <span id="b-lang-name">—</span></div>
+  </div>
+
   <div id="status">接続中...</div>
   <div id="prompter"></div>
 
   <script>
-    const prompter   = document.getElementById('prompter');
-    const statusEl   = document.getElementById('status');
+    const prompter    = document.getElementById('prompter');
+    const statusEl    = document.getElementById('status');
+    const selTarget   = document.getElementById('sel-target');
+    const bLangName   = document.getElementById('b-lang-name');
     const MAX_HISTORY = 10;
+    const MAX_MAP     = 20;
+    const lineMap     = new Map();
 
-    function getOrCreateInterim() {
-      let interim = prompter.querySelector('.line.interim');
-      if (!interim) {
-        interim = document.createElement('div');
-        interim.className = 'line interim';
-        interim.innerHTML = '<div class="original"></div><div class="translated"></div>';
-        prompter.appendChild(interim);
-      }
-      return interim;
+    let supportedLanguages = [];
+    let ctrlState = { target_language: 'ja', translation_enabled: true, source_language: 'zh' };
+
+    function langName(code) {
+      const l = supportedLanguages.find(x => x.code === code);
+      return l ? l.name_ja : code;
     }
 
-    const ws = new WebSocket('ws://localhost:8000/captions/to_A');
+    function populateTargetSelect(languages) {
+      selTarget.innerHTML = '';
+      for (const lang of languages) {
+        const opt = document.createElement('option');
+        opt.value = lang.code;
+        opt.textContent = lang.name_ja;
+        selTarget.appendChild(opt);
+      }
+    }
 
-    ws.onopen  = () => { statusEl.textContent = '接続済み'; };
-    ws.onclose = () => { statusEl.textContent = '切断 — ページを再読み込みしてください'; };
-    ws.onerror = () => { statusEl.textContent = 'エラー'; };
+    function updateCtrlUI() {
+      selTarget.value = ctrlState.target_language;
+      document.getElementById('btn-trans-on').classList.toggle('active',  ctrlState.translation_enabled);
+      document.getElementById('btn-trans-off').classList.toggle('active', !ctrlState.translation_enabled);
+      bLangName.textContent = langName(ctrlState.source_language);
+    }
 
-    ws.onmessage = (e) => {
-      const { original, translated, is_final } = JSON.parse(e.data);
+    function setTargetLanguage(code) {
+      if (ctrlWs.readyState === WebSocket.OPEN)
+        ctrlWs.send(JSON.stringify({ type: 'set_target_language', value: code }));
+    }
 
-      const interim = getOrCreateInterim();
-      interim.querySelector('.original').textContent   = original;
-      interim.querySelector('.translated').textContent = translated;
+    function setTranslation(enabled) {
+      if (ctrlWs.readyState === WebSocket.OPEN)
+        ctrlWs.send(JSON.stringify({ type: 'set_translation', value: enabled }));
+    }
 
-      if (is_final) {
-        interim.classList.replace('interim', 'history');
+    function wsUrl(path) {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return proto + '//' + window.location.host + path;
+    }
 
-        const histories = prompter.querySelectorAll('.line.history');
-        if (histories.length > MAX_HISTORY) {
-          histories[0].remove();
+    const ctrlWs = new WebSocket(wsUrl('/control/A'));
+
+    ctrlWs.onopen = () => {
+      ctrlWs.send(JSON.stringify({ type: 'get_state' }));
+    };
+
+    ctrlWs.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'state') {
+        if (msg.supported_languages) {
+          supportedLanguages = msg.supported_languages;
+          populateTargetSelect(supportedLanguages);
         }
+        ctrlState.target_language     = msg.target_language;
+        ctrlState.translation_enabled = msg.translation_enabled;
+        ctrlState.source_language     = msg.source_language;
+        updateCtrlUI();
+      }
+    };
 
-        const next = document.createElement('div');
-        next.className = 'line interim';
-        next.innerHTML = '<div class="original"></div><div class="translated"></div>';
-        prompter.appendChild(next);
+    function makeInterimEl() {
+      const el = document.createElement('div');
+      el.className = 'line interim';
+      el.innerHTML = '<div class="original"></div><div class="translated"></div>';
+      return el;
+    }
+
+    function getOrCreateLine(utt_id) {
+      if (lineMap.has(utt_id)) return lineMap.get(utt_id);
+
+      let el = prompter.querySelector('.line.interim');
+      if (!el) {
+        el = makeInterimEl();
+        prompter.appendChild(el);
+      }
+      lineMap.set(utt_id, el);
+
+      if (lineMap.size > MAX_MAP) {
+        lineMap.delete(lineMap.keys().next().value);
+      }
+      return el;
+    }
+
+    const capWs = new WebSocket(wsUrl('/captions/to_A'));
+
+    capWs.onopen  = () => { statusEl.textContent = '接続済み'; };
+    capWs.onclose = () => { statusEl.textContent = '切断 — ページを再読み込みしてください'; };
+    capWs.onerror = () => { statusEl.textContent = 'エラー'; };
+
+    capWs.onmessage = (e) => {
+      const { kind, utterance_id, text, is_final } = JSON.parse(e.data);
+
+      let el;
+      if (lineMap.has(utterance_id)) {
+        el = lineMap.get(utterance_id);
+      } else {
+        if (kind !== 'original') return;
+        el = getOrCreateLine(utterance_id);
+      }
+
+      if (kind === 'original')        el.querySelector('.original').textContent   = text;
+      else if (kind === 'translated') el.querySelector('.translated').textContent = text;
+
+      if (is_final && el.classList.contains('interim')) {
+        el.classList.replace('interim', 'history');
+        const histories = prompter.querySelectorAll('.line.history');
+        if (histories.length > MAX_HISTORY) histories[0].remove();
+        prompter.appendChild(makeInterimEl());
       }
 
       window.scrollTo(0, document.body.scrollHeight);

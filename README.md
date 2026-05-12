@@ -156,6 +156,44 @@ python client_b/mic_sender.py
 
 ---
 
+## リモート接続（ngrok 経由）
+
+サーバーを ngrok 経由で外部に公開する手順:
+
+### 1. ngrok を起動
+
+```bash
+ngrok http 8000
+```
+
+### 2. 表示された URL をメモ
+
+```
+Forwarding  https://xxxx.ngrok-free.dev -> http://localhost:8000
+```
+
+### 3. クライアント側の .env を更新
+
+```
+SERVER_URL=wss://xxxx.ngrok-free.dev
+```
+
+`ws://` ではなく `wss://`（TLS あり）であることに注意してください。
+
+### 4. 各クライアントと URL
+
+| 役割 | URL |
+|------|-----|
+| A の画面 | `https://xxxx.ngrok-free.dev/a` |
+| B の画面 | `https://xxxx.ngrok-free.dev/b` |
+| client_a/audio_capture.py | `.env` の `SERVER_URL` を参照 |
+| client_b/mic_sender.py | `.env` の `SERVER_URL` を参照 |
+| client_b/audio_player.py | `.env` の `SERVER_URL` を参照 |
+
+ブラウザ画面（web_a / web_b）は表示元のオリジンから自動的に WebSocket URL を組み立てるため、`.env` の変更は不要です。
+
+---
+
 ## ディレクトリ構成
 
 ```

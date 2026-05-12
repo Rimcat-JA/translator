@@ -1,6 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 import httpx
+from shared.languages import get_language
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +28,18 @@ class DeepLTranslationProvider(TranslationProvider):
         self._client = httpx.AsyncClient(timeout=5.0)
 
     async def translate(self, text: str, source: str, target: str) -> str:
+        source_lang = get_language(source)
+        target_lang = get_language(target)
+        if not source_lang or not target_lang:
+            return text
         try:
             resp = await self._client.post(
                 self._ENDPOINT,
                 headers={"Authorization": f"DeepL-Auth-Key {self._api_key}"},
                 json={
                     "text": [text],
-                    "source_lang": source.upper(),
-                    "target_lang": target.upper(),
+                    "source_lang": source_lang["deepl_source"],
+                    "target_lang": target_lang["deepl_target"],
                 },
             )
             resp.raise_for_status()
