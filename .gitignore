@@ -7,8 +7,6 @@ __pycache__/
 .DS_Store
 ngrok.exe
 ngrok.yml
-.claude/
 .vscode/
 .idea/
 *.log
-CLAUDE.md
