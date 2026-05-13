@@ -57,6 +57,7 @@ class GladiaSTTProvider(STTProvider):
         self._on_disconnect = on_disconnect
         self._connected = False
         self._shutdown_requested = False
+        self._last_disconnected_log = 0
 
     @property
     def connected(self) -> bool:
@@ -116,12 +117,17 @@ class GladiaSTTProvider(STTProvider):
             logger.info(f"Gladia session started  language={self._language}")
 
     async def _recv_loop(self):
+        msg_count = 0
         try:
             async for message in self._ws:
+                msg_count += 1
                 if not isinstance(message, str):
                     continue
                 data = json.loads(message)
-                if data.get("type") != "transcript":
+                msg_type = data.get("type", "")
+                if msg_count <= 5 or msg_count % 20 == 0:
+                    logger.info(f"Gladia recv msg #{msg_count} type={msg_type}")
+                if msg_type != "transcript":
                     continue
                 utterance = data["data"].get("utterance", {})
                 text = utterance.get("text", "").strip()
@@ -143,6 +149,11 @@ class GladiaSTTProvider(STTProvider):
 
     async def transcribe(self, audio_chunk: bytes) -> Optional[dict]:
         if self._ws is None or self._ws.close_code is not None:
+            import time
+            now = time.time()
+            if now - self._last_disconnected_log > 5:
+                logger.warning(f"Gladia WS not available; ws={self._ws}, close_code={self._ws.close_code if self._ws else None}")
+                self._last_disconnected_log = now
             return None
         try:
             await self._ws.send(audio_chunk)
@@ -150,7 +161,8 @@ class GladiaSTTProvider(STTProvider):
             logger.error(f"Gladia send error: {e}")
             return None
         try:
-            return self._result_queue.get_nowait()
+            result = self._result_queue.get_nowait()
+            return result
         except asyncio.QueueEmpty:
             return None
 

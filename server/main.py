@@ -219,6 +219,8 @@ async def audio_from_b(websocket: WebSocket):
         while True:
             data = await websocket.receive_bytes()
             chunk_count += 1
+            if chunk_count % 100 == 0:
+                logger.info(f"[from_B] chunk_count={chunk_count}, stt_connected={getattr(stt, 'connected', 'N/A')}")
             result = await stt.transcribe(data)
             if result:
                 text = result["text"]
