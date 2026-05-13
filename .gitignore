@@ -5,3 +5,10 @@ __pycache__/
 *.pyo
 *.pyd
 .DS_Store
+ngrok.exe
+ngrok.yml
+.claude/
+.vscode/
+.idea/
+*.log
+CLAUDE.md
