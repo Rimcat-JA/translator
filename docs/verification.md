@@ -8,10 +8,11 @@ Environment: Windows 11 x64, Python 3.13.13, Node 24.13.0, locked Python/npm dep
 
 | Check | Result |
 |---|---|
-| Python API, session, config, providers, audio, runtime and contract tests | 71 passed |
+| Python API, session, config, providers, audio, runtime, CLI and contract tests | 73 passed |
 | Frontend type checking and production build | Passed |
 | Frontend reducer, audio DSP and UI tests | 23 unique tests passed |
 | Actual source process startup/shutdown/restart | Passed twice |
+| CLI Japanese output under inherited ASCII/cp1252 encodings | Passed; ASCII source process smoke also passed |
 | PyInstaller Windows onedir build | Passed |
 | Frozen executable startup/shutdown/restart with developer tools removed from PATH | Passed twice |
 | Frozen SoundCard/ngrok native dependency imports | Passed |
@@ -38,7 +39,7 @@ Browser DSP tests cover 44.1/48 kHz input, exact sample counts over three second
 | Design criteria | Current evidence |
 |---|---|
 | AC01 | Packaged startup with restricted PATH passed; clean VM gate remains open |
-| AC02 | One-command source startup passed; macOS/Linux source tests run in CI where available |
+| AC02 | One-command source startup passed; Windows/Linux source tests run in CI; macOS is untested |
 | AC03 | No 20-run browser-display p95 measurement; no five-second claim |
 | AC04 | Dummy demo makes no external API calls and requires no microphone; browser/asset loading is local |
 | AC05, AC17 | Browser pipeline is implemented and exercised with synthetic providers; real two-device HTTPS gate remains open |

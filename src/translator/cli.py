@@ -20,6 +20,20 @@ from translator.instance import InstanceLock, contact_instance
 from translator.logging_config import configure_logging
 
 
+def configure_stdio():
+    # Redirected Windows streams inherit the runner's code page (often cp1252).
+    # Japanese status messages must not turn a successful command into an error.
+    # PyInstaller's windowed build has no stdout/stderr; test hosts may replace
+    # the streams with objects that do not support TextIOWrapper.reconfigure.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(encoding="utf-8", errors="backslashreplace")
+            except (OSError, ValueError):
+                pass
+
+
 def notify_error(message: str):
     if sys.stderr is not None:
         print(message, file=sys.stderr)
@@ -108,6 +122,7 @@ async def _start(args, settings: Settings, lock: InstanceLock):
 
 def main():
     multiprocessing.freeze_support()
+    configure_stdio()
     parser = argparse.ArgumentParser(description="Translator — 字幕とPC音声共有")
     parser.add_argument("command", nargs="?", choices=("start", "dev", "doctor", "stop"), default="start")
     parser.add_argument("--demo", action="store_true", help="完全ローカルのデモを選択して起動")

@@ -88,7 +88,12 @@ def main():
                         time.sleep(0.1)
                     assert captions and any(row["translation"]["status"] == "ready" for row in captions.values())
                     repeated = subprocess.run(command, cwd=work, env=env, capture_output=True, timeout=15)
-                    assert repeated.returncode == 0
+                    repeated_error = repeated.stderr.decode("utf-8", errors="replace")
+                    for credential in (token, csrf, instance["url"]):
+                        repeated_error = repeated_error.replace(credential, "[redacted]")
+                    assert repeated.returncode == 0, (
+                        f"Duplicate launcher exited {repeated.returncode}: {repeated_error[-4000:]}"
+                    )
                     assert contact_instance(directory, "status")["instance_id"] == instance["instance_id"]
                     response = client.post(f"/api/local/sessions/{session}/stop", json={"request_id": uuid.uuid4().hex})
                     assert response.status_code == 200, response.text
