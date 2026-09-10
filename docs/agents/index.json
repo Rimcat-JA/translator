@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "entrypoint": "AGENTS.md",
+  "preferred_interface": "uv run --locked translator agent",
+  "command_catalog": "contracts/agent-interface.json",
+  "result_schema": "contracts/agent-result.schema.json",
+  "pages": [
+    {
+      "path": "AGENTS.md",
+      "task": "Repository entry and operating rules"
+    },
+    {
+      "path": "docs/agents/index.md",
+      "task": "Choose one short document"
+    },
+    {
+      "path": "docs/agents/quickstart.md",
+      "task": "Run an isolated offline demo from start to stop"
+    },
+    {
+      "path": "docs/agents/operations.md",
+      "task": "Settings, live sessions, invitations and headless audio"
+    },
+    {
+      "path": "docs/agents/repository-map.md",
+      "task": "Find implementation files and relevant checks"
+    },
+    {
+      "path": "docs/agents/troubleshooting.md",
+      "task": "Recover from a failed JSON command"
+    },
+    {
+      "path": "contracts/implementation-api.md",
+      "task": "Inspect authenticated HTTP and WebSocket protocols"
+    },
+    {
+      "path": "docs/verification.md",
+      "task": "Understand tested behavior and remaining hardware checks"
+    }
+  ],
+  "commands": [
+    {
+      "name": "catalog",
+      "summary": "Return this offline command catalog; no runtime or files are required.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "status",
+      "summary": "Discover the runtime. Missing runtime succeeds with running:false. Running status includes settings, session metadata and caption_count, without transcript text.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "runtime-start",
+      "summary": "Start a detached runtime without opening a browser or starting a session/audio. Source startup may build missing assets.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "runtime-stop",
+      "summary": "Request authenticated shutdown and wait for that runtime to stop.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "settings-get",
+      "summary": "Read current preferences and provider configuration metadata; never return API keys.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "settings-set",
+      "summary": "Update preferences from {expected_revision:integer,settings:object}; maximum UTF-8 input size is 32768 bytes.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "session-create",
+      "summary": "Create an idle conversation; an explicit demo/live mode is required. This does not start capture or providers.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "session-start",
+      "summary": "Prepare an existing conversation. Demo starts synthetic PCM; live mode waits for a participant and does not capture the PC.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "session-stop",
+      "summary": "Stop a conversation, release audio/providers and discard its in-memory captions.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "session-snapshot",
+      "summary": "Read current conversation state and the latest captions (default10). caption_count is the total retained; captions_truncated reports omitted older entries.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "invite-create",
+      "summary": "Return a sensitive, one-use, ten-minute participant invite URL. Share it only with the intended participant.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "diagnostics",
+      "summary": "Read runtime diagnostics without API keys or transcript text.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "devices",
+      "summary": "Enumerate native PC audio output devices; this does not start capture.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "secret-set",
+      "summary": "Read a non-empty plaintext UTF-8 key from stdin/file, maximum 4096 bytes. Memory-only by default; never echo the key.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "provider-test",
+      "summary": "Explicitly contact the configured provider; usage may be incurred. ngrok validation is performed by tunnel-start.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "tunnel-start",
+      "summary": "Explicitly publish the participant Hub with the configured ngrok account and domain.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "tunnel-stop",
+      "summary": "Stop the currently owned public tunnel.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "audio-share",
+      "summary": "Share the selected PC output for a bounded duration, keep the authenticated owner heartbeat alive, then stop owned capture.",
+      "read": "docs/agents/operations.md"
+    }
+  ]
+}

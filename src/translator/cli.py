@@ -123,6 +123,12 @@ async def _start(args, settings: Settings, lock: InstanceLock):
 def main():
     multiprocessing.freeze_support()
     configure_stdio()
+    if sys.argv[1:2] == ["agent"]:
+        if sys.stdout is None:
+            notify_error("JSON操作には TranslatorAgent.exe agent を使ってください。")
+            raise SystemExit(2)
+        from translator.agent import main as agent_main
+        raise SystemExit(agent_main(sys.argv[2:]))
     parser = argparse.ArgumentParser(description="Translator — 字幕とPC音声共有")
     parser.add_argument("command", nargs="?", choices=("start", "dev", "doctor", "stop"), default="start")
     parser.add_argument("--demo", action="store_true", help="完全ローカルのデモを選択して起動")

@@ -34,7 +34,7 @@ def runtime(tmp_path):
     (tmp_path / "index.html").write_text("<!doctype html><title>Translator</title>", encoding="utf-8")
     stopped = []
 
-    async def set_audio(enabled, device_id):
+    async def set_audio(enabled, device_id, **ownership):
         stopped.append(enabled)
 
     return SimpleNamespace(auth=AuthManager(), sessions=SessionService(lambda demo: (DummySTTProvider(), DummyTranslationProvider())),
@@ -90,6 +90,44 @@ def test_local_bootstrap_is_one_time_and_cookie_is_scoped(runtime):
         cookie = result.headers["set-cookie"].lower()
         assert "httponly" in cookie and "samesite=strict" in cookie
         assert "domain=" not in cookie
+
+
+def test_agent_logout_revokes_only_its_cookie_and_requires_local_csrf(runtime):
+    with local_client(runtime) as first, local_client(runtime) as second, hub_client(runtime) as hub:
+        login_local(first, runtime)
+        login_local(second, runtime)
+        first_cookie = first.cookies.get("translator_local")
+        second_cookie = second.cookies.get("translator_local")
+        denied = first.post("/api/local/logout", json={}, headers={"X-CSRF-Token": "wrong"})
+        assert denied.status_code == 403 and runtime.auth.local(first_cookie) is not None
+        assert hub.post("/api/local/logout", json={}).status_code == 404
+        result = first.post("/api/local/logout", json={})
+        assert result.status_code == 200 and result.json() == {"status": "logged_out"}
+        assert runtime.auth.local(first_cookie) is None
+        assert first.get("/api/local/settings").status_code == 401
+        assert runtime.auth.local(second_cookie) is not None
+        assert second.get("/api/local/settings").status_code == 200
+
+
+def test_settings_conflict_has_stable_code_without_arbitrary_exception_text(runtime):
+    with local_client(runtime) as client:
+        login_local(client, runtime)
+
+        def stale(*args):
+            raise ValueError("SETTINGS_CONFLICT")
+
+        runtime.settings.update = stale
+        body = {"request_id": "stale", "expected_revision": 0, "settings": {"theme": "dark"}}
+        response = client.patch("/api/local/settings", json=body)
+        assert response.status_code == 409 and response.json()["error"]["code"] == "SETTINGS_CONFLICT"
+
+        def unexpected(*args):
+            raise ValueError("private-provider-body")
+
+        runtime.settings.update = unexpected
+        response = client.patch("/api/local/settings", json=body)
+        assert response.status_code == 422 and response.json()["error"]["code"] == "INVALID_SETTING"
+        assert "private-provider-body" not in response.text
 
 
 @pytest.mark.parametrize("origin", ["https://evil.example", "null", "http://localhost:8765"])

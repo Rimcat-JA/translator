@@ -58,7 +58,7 @@ def notices():
 
 
 def main():
-    if not (OUTPUT / "Translator.exe").is_file():
+    if not all((OUTPUT / name).is_file() for name in ("Translator.exe", "TranslatorAgent.exe")):
         raise SystemExit("Build packaging/translator.spec on Windows first.")
     source_marker = ROOT / "src/translator/resources/web/build-info.json"
     bundled_marker = OUTPUT / "_internal/translator/resources/web/build-info.json"
@@ -71,6 +71,8 @@ def main():
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     manifest = {"version": "0.2.0-preview.1", "commit": revision, "platform": "windows-x64",
                 "python": sys.version.split()[0], "signed": False, "channel": "preview",
+                "agent_interface_version": 1,
+                "entry_points": {"agent": "TranslatorAgent.exe agent", "human": "Translator.exe"},
                 "unverified": ["clean_windows_vm", "paid_apis", "two_device_remote_audio", "latency_targets"]}
     (OUTPUT / "release-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     archive = Path(shutil.make_archive(str(ROOT / "dist/Translator-windows-x64-preview"), "zip", OUTPUT.parent, OUTPUT.name))

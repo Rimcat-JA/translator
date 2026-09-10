@@ -62,6 +62,7 @@ class InviteBody(Mutation):
 class SystemAudioBody(Mutation):
     enabled: bool
     device_id: str | None = Field(default=None, max_length=512)
+    owner_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
 
 
 class LeaseBody(Mutation):
@@ -222,7 +223,16 @@ def _base_app(runtime: Any, local: bool) -> FastAPI:
 
     @app.exception_handler(ValueError)
     async def invalid_value(request: Request, exc: ValueError):
-        return error("INVALID_SETTING", "設定値または保存方法を確認してください。", 422)
+        # Expose only known domain codes, never arbitrary exception text or input.
+        code = str(exc).split(":", 1)[0]
+        known = {"SETTINGS_CONFLICT", "READ_ONLY_SETTING", "UNSUPPORTED_LANGUAGE",
+                 "PROVIDER_NOT_CONFIGURED", "NGROK_NOT_CONFIGURED", "STT_NOT_CONFIGURED",
+                 "ENV_NOT_FOUND", "INVALID_SECRET", "SECURE_STORAGE_UNAVAILABLE",
+                 "SECURE_STORAGE_FAILED", "SESSION_NOT_ACTIVE"}
+        if code not in known:
+            code = "INVALID_SETTING"
+        status = 409 if code == "SETTINGS_CONFLICT" else 422
+        return error(code, "設定値または保存方法を確認してください。", status)
 
     @app.exception_handler(ProviderError)
     async def provider_error(request: Request, exc: ProviderError):
@@ -297,6 +307,14 @@ def create_local_app(runtime: Any) -> FastAPI:
         _principal(request, runtime, True)
         return runtime.settings.public()
 
+    @app.post("/api/local/logout")
+    async def logout(request: Request):
+        _principal(request, runtime, True, True)
+        runtime.auth.logout_local(request.cookies.get("translator_local", ""))
+        response = JSONResponse({"status": "logged_out"})
+        response.delete_cookie("translator_local", path="/")
+        return response
+
     @app.patch("/api/local/settings")
     async def update_settings(request: Request, body: SettingsPatch):
         _principal(request, runtime, True, True)
@@ -346,15 +364,22 @@ def create_local_app(runtime: Any) -> FastAPI:
 
     @app.post("/api/local/sessions/{session_id}/system-audio")
     async def system_audio(request: Request, session_id: str, body: SystemAudioBody):
-        _principal(request, runtime, True, True)
+        principal = _principal(request, runtime, True, True)
         s = runtime.sessions.require(session_id)
+        owner = f"{principal.identity}:{body.owner_id}" if body.owner_id else None
+        if body.enabled and owner and owner not in getattr(runtime, "audio_listeners", set()):
+            raise SessionError("HOST_NOT_CONNECTED", "Open the authenticated audio owner connection first.")
         if body.enabled and s.demo:
             raise SessionError("DEMO_AUDIO_DISABLED", "デモではPC音声を取得しません。実際の会話を開始してください。")
         if body.enabled and s.status not in {"waiting_for_peer", "running", "degraded"}:
             raise SessionError("INVALID_STATE", "通訳を開始してからPC音声を共有してください。")
         if body.enabled and time.monotonic() - getattr(runtime, "local_presence", 0) >= 10:
             raise SessionError("HOST_NOT_CONNECTED", "字幕画面の接続を待って再試行してください。")
-        await runtime.set_system_audio(body.enabled, body.device_id)
+        if owner:
+            await runtime.set_system_audio(body.enabled, body.device_id, owner_id=owner,
+                                           only_if_owner=not body.enabled)
+        else:
+            await runtime.set_system_audio(body.enabled, body.device_id)
         return s.snapshot()
 
     @app.post("/api/local/sessions/{session_id}/invites")
@@ -488,8 +513,25 @@ async def _events(websocket: WebSocket, runtime: Any, local: bool, session_id: s
     principal = await _ws_authorize(websocket, runtime, local, session_id)
     if principal is None:
         return
-    await websocket.accept()
+    owner = None
+    owner_id = websocket.query_params.get("audio_owner") if local else None
+    if owner_id is not None:
+        if len(owner_id) != 32 or any(c not in "0123456789abcdef" for c in owner_id):
+            await websocket.close(code=4400)
+            return
+        owner = f"{principal.identity}:{owner_id}"
+        if owner in runtime.audio_listeners:
+            await websocket.close(code=4409)
+            return
+        runtime.audio_listeners.add(owner)
+    try:
+        await websocket.accept()
+    except BaseException:
+        if owner:
+            runtime.audio_listeners.discard(owner)
+        raise
     queue, snapshot = runtime.sessions.subscribe()
+    last_presence = time.monotonic()
     if local:
         runtime.local_presence = time.monotonic()
     try:
@@ -497,7 +539,9 @@ async def _events(websocket: WebSocket, runtime: Any, local: bool, session_id: s
     except BaseException:
         runtime.sessions.unsubscribe(queue)
         if local:
-            await runtime.set_system_audio(False, None)
+            if owner:
+                runtime.audio_listeners.discard(owner)
+            await runtime.set_system_audio(False, None, owner_id=owner, only_if_owner=True)
         raise
 
     async def sender():
@@ -509,6 +553,7 @@ async def _events(websocket: WebSocket, runtime: Any, local: bool, session_id: s
             await websocket.send_json(event)
 
     async def receiver():
+        nonlocal last_presence
         while True:
             raw = await websocket.receive_text()
             if len(raw) > 8192:
@@ -516,6 +561,7 @@ async def _events(websocket: WebSocket, runtime: Any, local: bool, session_id: s
             if local:
                 _principal(websocket, runtime, True)
                 runtime.local_presence = time.monotonic()
+                last_presence = runtime.local_presence
             else:
                 _participant(websocket, runtime, session_id)
             request_id = ""
@@ -567,8 +613,8 @@ async def _events(websocket: WebSocket, runtime: Any, local: bool, session_id: s
     async def presence_watchdog():
         while True:
             await asyncio.sleep(1)
-            if local and time.monotonic() - runtime.local_presence >= 6:
-                await runtime.set_system_audio(False, None)
+            if local and time.monotonic() - last_presence >= 6:
+                await runtime.set_system_audio(False, None, owner_id=owner, only_if_owner=True)
                 return
 
     tasks = [asyncio.create_task(sender()), asyncio.create_task(receiver())]
@@ -587,8 +633,10 @@ async def _events(websocket: WebSocket, runtime: Any, local: bool, session_id: s
             await asyncio.gather(*tasks, return_exceptions=True)
             runtime.sessions.unsubscribe(queue)
             if local:
-                # A surviving host view can explicitly restart sharing after another view closes.
-                await runtime.set_system_audio(False, None)
+                if owner:
+                    runtime.audio_listeners.discard(owner)
+                # A monitor or another agent cannot stop a different owner's capture.
+                await runtime.set_system_audio(False, None, owner_id=owner, only_if_owner=True)
             with suppress(RuntimeError, WebSocketDisconnect, OSError):
                 await websocket.close(code=1000 if local else 4401)
 
