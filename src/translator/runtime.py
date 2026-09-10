@@ -62,6 +62,8 @@ class Runtime:
         self._worker = None
         self._capture_task = None
         self._audio_lock = asyncio.Lock()
+        self._audio_owner: str | None = None
+        self.audio_listeners: set[str] = set()
         self._servers: list[uvicorn.Server] = []
         self._server_tasks = []
         self._sockets: list[socket.socket] = []
@@ -140,29 +142,39 @@ class Runtime:
         from translator.audio.loopback import list_devices
         return await list_devices()
 
-    async def set_system_audio(self, enabled: bool, device_id: str | None = None):
+    async def set_system_audio(self, enabled: bool, device_id: str | None = None,
+                               *, owner_id: str | None = None, only_if_owner: bool = False):
         from translator.audio.worker import NativeAudioWorker
         async with self._audio_lock:
+            if only_if_owner and self._audio_owner != owner_id:
+                return {"status": "active" if self._worker else "idle"}
             if not enabled:
                 task, worker = self._capture_task, self._worker
-                self._capture_task = self._worker = None
+                self._capture_task = None
                 if task:
                     task.cancel()
                     with contextlib.suppress(asyncio.CancelledError, Exception):
                         await task
                 if worker:
                     await worker.stop()
+                # A failed driver stop must remain reachable for a later retry.
+                self._worker = None
+                self._audio_owner = None
                 if self.sessions.current:
                     self.sessions.current.components["system_audio_status"] = "idle"
                     self.sessions.notify()
                 return {"status": "idle"}
             if self._worker:
+                if self._audio_owner != owner_id:
+                    from translator.sessions import SessionError
+                    raise SessionError("AUDIO_BUSY", "Another host owns PC audio sharing.")
                 return {"status": "active"}
             if self.sessions.current is None or self.sessions.current.status in {"idle", "ended", "stopping"}:
                 raise ValueError("SESSION_NOT_ACTIVE")
             worker = NativeAudioWorker(device_id=device_id, frame_ms=self.settings.value.frame_ms)
             await worker.start()
             self._worker = worker
+            self._audio_owner = owner_id
             self.sessions.current.components["system_audio_status"] = "active"
             self.sessions.notify()
 
@@ -179,6 +191,7 @@ class Runtime:
                         self.sessions.notify()
                     await worker.stop()
                     self._worker = None
+                    self._audio_owner = None
 
             self._capture_task = asyncio.create_task(relay())
             return {"status": "active"}

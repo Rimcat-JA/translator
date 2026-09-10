@@ -88,6 +88,7 @@ class NativeAudioWorker:
         self._stop = None
         self._output = None
         self._status = None
+        self._stop_task: asyncio.Task | None = None
         self.active = False
 
     async def start(self) -> None:
@@ -101,11 +102,14 @@ class NativeAudioWorker:
         self._output = context.Queue(maxsize=max(1, 60 // self.frame_ms))
         self._status = context.Queue(maxsize=4)
         self._process = context.Process(target=_capture, args=(self._stop, self._output, self._status, self.device_id, self.frame_ms), name="translator-loopback")
+        process, stop_requested = self._process, self._stop
         try:
             self._process.start()
             kind, code = await asyncio.to_thread(self._status.get, True, 10.0)
             if kind != "ready":
                 raise ProviderError(code, "PC音声を取得できません。出力デバイスを確認してください。")
+            if self._process is not process or stop_requested.is_set():
+                raise ProviderError("AUDIO_CAPTURE_START_CANCELLED", "PC音声の開始は停止要求により取り消されました。")
             self.active = True
         except ProviderError:
             await self.stop()
@@ -139,21 +143,66 @@ class NativeAudioWorker:
                 yield frame
 
     async def stop(self) -> None:
+        """All callers share bounded cleanup, even when one caller is cancelled.
+
+        Runtime can cancel its relay while that relay is already stopping a
+        failed driver. Keep the child handle until cleanup has actually finished,
+        and do not let cancelling the relay cancel the process cleanup itself.
+        """
         self.active = False
-        process, self._process = self._process, None
-        if process is not None:
-            self._stop.set()
-            if process.pid:
-                await asyncio.to_thread(process.join, 1.0)
-                if process.is_alive():
-                    process.terminate()
+        cleanup = self._stop_task
+        if cleanup is None or cleanup.done():
+            if self._process is None and self._output is None and self._status is None:
+                return
+            cleanup = asyncio.create_task(self._stop_process(), name="translator-audio-stop")
+            self._stop_task = cleanup
+        cancelled = False
+        try:
+            while not cleanup.done():
+                try:
+                    await asyncio.shield(cleanup)
+                except asyncio.CancelledError:
+                    # Propagate cancellation after the owned process has had its
+                    # bounded join/terminate/kill attempts. Repeated cancellation
+                    # also leaves the same cleanup task running.
+                    cancelled = True
+                except Exception:
+                    break  # Retrieve and propagate the shared cleanup failure below.
+            if cancelled:
+                if not cleanup.cancelled():
+                    cleanup.exception()
+                raise asyncio.CancelledError
+            cleanup.result()
+        finally:
+            if cleanup.done() and self._stop_task is cleanup:
+                self._stop_task = None
+
+    async def _stop_process(self) -> None:
+        process = self._process
+        try:
+            if process is not None:
+                if self._stop is not None:
+                    self._stop.set()
+                if process.pid:
                     await asyncio.to_thread(process.join, 1.0)
-                if process.is_alive():
-                    process.kill()
-                    await asyncio.to_thread(process.join, 1.0)
+                    if process.is_alive():
+                        process.terminate()
+                        await asyncio.to_thread(process.join, 1.0)
+                    if process.is_alive():
+                        process.kill()
+                        await asyncio.to_thread(process.join, 1.0)
+                    if process.is_alive():
+                        raise ProviderError("AUDIO_WORKER_STOP_FAILED", "PC音声の取得プロセスの終了を確認できませんでした。")
                 process.close()
-        for channel in (self._output, self._status):
-            if channel is not None:
-                channel.close()
-                channel.cancel_join_thread()
-        self._output = self._status = self._stop = None
+                # Retain the live handle if any stop stage fails, so a later
+                # explicit stop can retry instead of silently losing the child.
+                self._process = None
+            for channel in (self._output, self._status):
+                if channel is not None:
+                    channel.close()
+                    channel.cancel_join_thread()
+            self._output = self._status = self._stop = None
+        except ProviderError:
+            raise
+        except Exception:
+            raise ProviderError("AUDIO_WORKER_STOP_FAILED", "PC音声の取得プロセスの終了を確認できませんでした。") from None

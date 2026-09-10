@@ -147,6 +147,57 @@ async def test_worker_forces_hung_driver_to_exit(monkeypatch):
     assert pid not in {p.pid for p in multiprocessing.active_children()}
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows subprocess lifecycle")
+@pytest.mark.asyncio
+async def test_cancelled_stop_keeps_hung_driver_handle_and_shares_cleanup(monkeypatch):
+    monkeypatch.setattr("translator.audio.worker._capture", stuck_capture)
+    worker = NativeAudioWorker()
+    await worker.start()
+    process = worker._process
+    pid = process.pid
+    joined = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    original_join = process.join
+    callers = []
+
+    def observed_join(timeout=None):
+        loop.call_soon_threadsafe(joined.set)
+        return original_join(timeout)
+
+    monkeypatch.setattr(process, "join", observed_join)
+    try:
+        first = asyncio.create_task(worker.stop())
+        callers.append(first)
+        await asyncio.wait_for(joined.wait(), 1)
+        # Keep ownership until the process has actually exited, not merely
+        # until another caller has requested stop.
+        assert worker._process is process
+        first.cancel()
+        second = asyncio.create_task(worker.stop())
+        callers.append(second)
+        outcomes = await asyncio.wait_for(asyncio.gather(*callers, return_exceptions=True), 4)
+        assert isinstance(outcomes[0], asyncio.CancelledError)
+        assert outcomes[1] is None
+        assert worker._process is None and worker._output is None and worker._status is None
+        assert pid not in {p.pid for p in multiprocessing.active_children()}
+        await worker.stop()
+    finally:
+        for caller in callers:
+            if not caller.done():
+                caller.cancel()
+        if callers:
+            await asyncio.gather(*callers, return_exceptions=True)
+        # Only the synthetic process created by this test can need emergency
+        # cleanup if an assertion fails while exercising the old regression.
+        try:
+            if process.is_alive():
+                process.terminate()
+                await asyncio.to_thread(original_join, 2)
+            process.close()
+        except ValueError:
+            pass  # Already closed by the successful worker cleanup.
+
+
 @pytest.mark.asyncio
 async def test_tunnel_explicit_only_and_targets_hub(monkeypatch):
     calls = []

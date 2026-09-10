@@ -29,8 +29,10 @@ jobs:
       - run: npm --prefix frontend test
       - run: uv run --locked pytest
       - run: uv run --locked python tools/export_contracts.py --check
+      - run: uv run --locked python tools/export_agent_docs.py --check
       - run: uv run --locked python tools/build_frontend.py
       - run: uv run --locked python tools/smoke_runtime.py
+      - run: uv run --locked python tools/smoke_agent.py
       - run: npx --prefix frontend playwright install --with-deps chromium
       - run: npm --prefix frontend run test:e2e
       - uses: actions/upload-artifact@v7.0.1
@@ -55,6 +57,7 @@ jobs:
       - run: uv run --locked python tools/build_frontend.py
       - run: uv run --locked pyinstaller --noconfirm packaging/translator.spec
       - run: uv run --locked python tools/smoke_runtime.py --exe dist/Translator-windows-x64/Translator.exe
+      - run: uv run --locked python tools/smoke_agent.py --exe dist/Translator-windows-x64/TranslatorAgent.exe
       - run: uv run --locked python tools/package_release.py
       - uses: actions/upload-artifact@v7.0.1
         with:

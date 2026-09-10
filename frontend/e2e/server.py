@@ -22,7 +22,7 @@ class SyntheticRuntime(Runtime):
     async def list_audio_devices(self):
         return {"supported": True, "devices": [{"id": "synthetic", "name": "Test sine output"}]}
 
-    async def set_system_audio(self, enabled, device_id=None):
+    async def set_system_audio(self, enabled, device_id=None, **ownership):
         if self._capture_task:
             self._capture_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):

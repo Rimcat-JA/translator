@@ -1,0 +1,24 @@
+# Translator
+
+> Agent-operated translated captions and bounded PC audio sharing.
+
+Start with `uv run --locked translator agent catalog --command runtime-start`.
+Read one command at a time; omit `--command` only when the full catalog is needed.
+Use an explicit data directory. Read `ok` before continuing. Session IDs come from results.
+
+## Task documents
+
+- [Repository entry and operating rules](AGENTS.md)
+- [Choose one short document](docs/agents/index.md)
+- [Run an isolated offline demo from start to stop](docs/agents/quickstart.md)
+- [Settings, live sessions, invitations and headless audio](docs/agents/operations.md)
+- [Find implementation files and relevant checks](docs/agents/repository-map.md)
+- [Recover from a failed JSON command](docs/agents/troubleshooting.md)
+- [Inspect authenticated HTTP and WebSocket protocols](contracts/implementation-api.md)
+- [Understand tested behavior and remaining hardware checks](docs/verification.md)
+
+## Machine-readable indexes
+
+- [Document index](docs/agents/index.json)
+- [Command catalog](contracts/agent-interface.json)
+- [Result JSON Schema](contracts/agent-result.schema.json)

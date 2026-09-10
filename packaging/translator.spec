@@ -19,4 +19,6 @@ a = Analysis([str(root / "packaging/entry.py")], pathex=[str(root / "src")],
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Translator", debug=False,
           bootloader_ignore_signals=False, strip=False, upx=False, console=False)
-coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="Translator-windows-x64")
+agent_exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="TranslatorAgent", debug=False,
+                bootloader_ignore_signals=False, strip=False, upx=False, console=True)
+coll = COLLECT(exe, agent_exe, a.binaries, a.datas, strip=False, upx=False, name="Translator-windows-x64")

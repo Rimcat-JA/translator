@@ -1,0 +1,669 @@
+{
+  "catalog_version": 1,
+  "executable": "translator agent",
+  "output_schema_version": 1,
+  "global_arguments": [
+    {
+      "name": "--data-dir",
+      "type": "string",
+      "required": false,
+      "description": "Use one isolated runtime profile; accepted before or after the command."
+    }
+  ],
+  "exit_codes": {
+    "0": "success",
+    "2": "invalid input",
+    "3": "runtime discovery or authentication failed",
+    "4": "operation failed or outcome is uncertain"
+  },
+  "commands": [
+    {
+      "name": "catalog",
+      "summary": "Return this offline command catalog; no runtime or files are required.",
+      "arguments": [
+        {
+          "name": "--command",
+          "type": "string",
+          "required": false,
+          "description": "Return only one command definition to reduce agent context.",
+          "choices": [
+            "catalog",
+            "status",
+            "runtime-start",
+            "runtime-stop",
+            "settings-get",
+            "settings-set",
+            "session-create",
+            "session-start",
+            "session-stop",
+            "session-snapshot",
+            "invite-create",
+            "diagnostics",
+            "devices",
+            "secret-set",
+            "provider-test",
+            "tunnel-start",
+            "tunnel-stop",
+            "audio-share"
+          ]
+        }
+      ],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": false,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent catalog"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "status",
+      "summary": "Discover the runtime. Missing runtime succeeds with running:false. Running status includes settings, session metadata and caption_count, without transcript text.",
+      "arguments": [],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": false,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent status"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "runtime-start",
+      "summary": "Start a detached runtime without opening a browser or starting a session/audio. Source startup may build missing assets.",
+      "arguments": [
+        {
+          "name": "--timeout",
+          "type": "number",
+          "required": false,
+          "description": "Maximum readiness wait in seconds.",
+          "default": 60,
+          "minimum": 1,
+          "maximum": 300
+        }
+      ],
+      "effects": {
+        "starts_runtime": true,
+        "starts_audio": false,
+        "external_network": true,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent runtime-start"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "runtime-stop",
+      "summary": "Request authenticated shutdown and wait for that runtime to stop.",
+      "arguments": [
+        {
+          "name": "--timeout",
+          "type": "number",
+          "required": false,
+          "description": "Maximum shutdown wait in seconds.",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 300
+        },
+        {
+          "name": "--request-id",
+          "type": "string",
+          "required": false,
+          "description": "Optional stable operation ID; generated when omitted. Never automatically retried."
+        }
+      ],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": false,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent runtime-stop"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "settings-get",
+      "summary": "Read current preferences and provider configuration metadata; never return API keys.",
+      "arguments": [],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": false,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent settings-get"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "settings-set",
+      "summary": "Update preferences from {expected_revision:integer,settings:object}; maximum UTF-8 input size is 32768 bytes.",
+      "arguments": [
+        {
+          "name": "--input",
+          "type": "string",
+          "required": true,
+          "description": "UTF-8 input file path, or - to read stdin. Never pass a key in command arguments."
+        },
+        {
+          "name": "--request-id",
+          "type": "string",
+          "required": false,
+          "description": "Optional stable operation ID; generated when omitted. Never automatically retried."
+        }
+      ],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": false,
+        "writes_settings": true,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent settings-set --input settings-change.json"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "session-create",
+      "summary": "Create an idle conversation; an explicit demo/live mode is required. This does not start capture or providers.",
+      "arguments": [
+        {
+          "name": "--mode",
+          "type": "string",
+          "required": true,
+          "description": "",
+          "choices": [
+            "demo",
+            "live"
+          ]
+        },
+        {
+          "name": "--source-language",
+          "type": "string",
+          "required": false,
+          "description": "",
+          "default": "zh",
+          "choices": [
+            "ar",
+            "bg",
+            "cs",
+            "da",
+            "de",
+            "el",
+            "en",
+            "es",
+            "et",
+            "fi",
+            "fr",
+            "hu",
+            "id",
+            "it",
+            "ja",
+            "ko",
+            "lt",
+            "lv",
+            "nb",
+            "nl",
+            "pl",
+            "pt",
+            "ro",
+            "ru",
+            "sk",
+            "sl",
+            "sv",
+            "tr",
+            "uk",
+            "zh"
+          ]
+        },
+        {
+          "name": "--target-language",
+          "type": "string",
+          "required": false,
+          "description": "",
+          "default": "ja",
+          "choices": [
+            "ar",
+            "bg",
+            "cs",
+            "da",
+            "de",
+            "el",
+            "en",
+            "es",
+            "et",
+            "fi",
+            "fr",
+            "hu",
+            "id",
+            "it",
+            "ja",
+            "ko",
+            "lt",
+            "lv",
+            "nb",
+            "nl",
+            "pl",
+            "pt",
+            "ro",
+            "ru",
+            "sk",
+            "sl",
+            "sv",
+            "tr",
+            "uk",
+            "zh"
+          ]
+        },
+        {
+          "name": "--translation-enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Requires an explicit value: --translation-enabled true or --translation-enabled false.",
+          "default": true,
+          "choices": [
+            "true",
+            "false"
+          ]
+        },
+        {
+          "name": "--request-id",
+          "type": "string",
+          "required": false,
+          "description": "Optional stable operation ID; generated when omitted. Never automatically retried."
+        }
+      ],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": false,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent session-create --mode demo --source-language zh --target-language ja"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "session-start",
+      "summary": "Prepare an existing conversation. Demo starts synthetic PCM; live mode waits for a participant and does not capture the PC.",
+      "arguments": [
+        {
+          "name": "--session-id",
+          "type": "string",
+          "required": true,
+          "description": "Use the exact session_id returned by session-create or status."
+        },
+        {
+          "name": "--request-id",
+          "type": "string",
+          "required": false,
+          "description": "Optional stable operation ID; generated when omitted. Never automatically retried."
+        }
+      ],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": false,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent session-start --session-id SESSION_ID"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "session-stop",
+      "summary": "Stop a conversation, release audio/providers and discard its in-memory captions.",
+      "arguments": [
+        {
+          "name": "--session-id",
+          "type": "string",
+          "required": true,
+          "description": "Use the exact session_id returned by session-create or status."
+        },
+        {
+          "name": "--request-id",
+          "type": "string",
+          "required": false,
+          "description": "Optional stable operation ID; generated when omitted. Never automatically retried."
+        }
+      ],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": false,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent session-stop --session-id SESSION_ID"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "session-snapshot",
+      "summary": "Read current conversation state and the latest captions (default10). caption_count is the total retained; captions_truncated reports omitted older entries.",
+      "arguments": [
+        {
+          "name": "--session-id",
+          "type": "string",
+          "required": true,
+          "description": "Use the exact session_id returned by session-create or status."
+        },
+        {
+          "name": "--limit",
+          "type": "integer",
+          "required": false,
+          "description": "Maximum recent captions returned; use 1 for the newest utterance.",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 100
+        }
+      ],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": false,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent session-snapshot --session-id SESSION_ID --limit 10"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "invite-create",
+      "summary": "Return a sensitive, one-use, ten-minute participant invite URL. Share it only with the intended participant.",
+      "arguments": [
+        {
+          "name": "--session-id",
+          "type": "string",
+          "required": true,
+          "description": "Use the exact session_id returned by session-create or status."
+        },
+        {
+          "name": "--request-id",
+          "type": "string",
+          "required": false,
+          "description": "Optional stable operation ID; generated when omitted. Never automatically retried."
+        }
+      ],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": false,
+        "writes_settings": false,
+        "returns_sensitive": true
+      },
+      "examples": [
+        "translator agent invite-create --session-id SESSION_ID"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "diagnostics",
+      "summary": "Read runtime diagnostics without API keys or transcript text.",
+      "arguments": [],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": false,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent diagnostics"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "devices",
+      "summary": "Enumerate native PC audio output devices; this does not start capture.",
+      "arguments": [],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": false,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent devices"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "secret-set",
+      "summary": "Read a non-empty plaintext UTF-8 key from stdin/file, maximum 4096 bytes. Memory-only by default; never echo the key.",
+      "arguments": [
+        {
+          "name": "--provider",
+          "type": "string",
+          "required": true,
+          "description": "Provider to configure or test.",
+          "choices": [
+            "gladia",
+            "deepl",
+            "ngrok"
+          ]
+        },
+        {
+          "name": "--input",
+          "type": "string",
+          "required": true,
+          "description": "UTF-8 input file path, or - to read stdin. Never pass a key in command arguments."
+        },
+        {
+          "name": "--persist",
+          "type": "boolean",
+          "required": false,
+          "description": "Presence-only flag: add --persist without a value to opt in to the OS credential store.",
+          "default": false
+        }
+      ],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": false,
+        "writes_settings": true,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent secret-set --provider gladia --input -",
+        "translator agent secret-set --provider deepl --input private-key.txt --persist"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "provider-test",
+      "summary": "Explicitly contact the configured provider; usage may be incurred. ngrok validation is performed by tunnel-start.",
+      "arguments": [
+        {
+          "name": "--provider",
+          "type": "string",
+          "required": true,
+          "description": "Provider to configure or test.",
+          "choices": [
+            "gladia",
+            "deepl",
+            "ngrok"
+          ]
+        },
+        {
+          "name": "--request-id",
+          "type": "string",
+          "required": false,
+          "description": "Optional stable operation ID; generated when omitted. Never automatically retried."
+        }
+      ],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": true,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent provider-test --provider gladia"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "tunnel-start",
+      "summary": "Explicitly publish the participant Hub with the configured ngrok account and domain.",
+      "arguments": [
+        {
+          "name": "--request-id",
+          "type": "string",
+          "required": false,
+          "description": "Optional stable operation ID; generated when omitted. Never automatically retried."
+        }
+      ],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": true,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent tunnel-start"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "tunnel-stop",
+      "summary": "Stop the currently owned public tunnel.",
+      "arguments": [
+        {
+          "name": "--request-id",
+          "type": "string",
+          "required": false,
+          "description": "Optional stable operation ID; generated when omitted. Never automatically retried."
+        }
+      ],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": true,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent tunnel-stop"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "audio-share",
+      "summary": "Share the selected PC output for a bounded duration, keep the authenticated owner heartbeat alive, then stop owned capture.",
+      "arguments": [
+        {
+          "name": "--session-id",
+          "type": "string",
+          "required": true,
+          "description": "Use the exact session_id returned by session-create or status."
+        },
+        {
+          "name": "--seconds",
+          "type": "integer",
+          "required": true,
+          "description": "",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        {
+          "name": "--device-id",
+          "type": "string",
+          "required": false,
+          "description": "Output device ID from devices; omit for the current OS default."
+        }
+      ],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": true,
+        "external_network": true,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent audio-share --session-id SESSION_ID --seconds 30"
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    }
+  ]
+}

@@ -8,7 +8,7 @@ Environment: Windows 11 x64, Python 3.13.13, Node 24.13.0, locked Python/npm dep
 
 | Check | Result |
 |---|---|
-| Python API, session, config, providers, audio, runtime, CLI and contract tests | 73 passed |
+| Python API, session, config, providers, audio, runtime, agent CLI and contract tests | 135 passed |
 | Frontend type checking and production build | Passed |
 | Frontend reducer, audio DSP and UI tests | 23 unique tests passed |
 | Actual source process startup/shutdown/restart | Passed twice |
@@ -19,6 +19,17 @@ Environment: Windows 11 x64, Python 3.13.13, Node 24.13.0, locked Python/npm dep
 | Python/Node/uv/Git absent from a clean Windows VM | Not tested |
 | Real browser E2E | 3 scenarios passed: demo/settings/reconnect; independent B microphone + A playback + stop/leave; microphone denial |
 | Visual inspection | Desktop home/captions/speaker and 320 px dark settings inspected |
+
+## Agent interface additions
+
+The agent interface is newer than the published `v0.2.0-preview.1` ZIP. Its entry point is `translator agent`, or `TranslatorAgent.exe agent` in newly built Windows artifacts. The human launcher remains available. No paid provider, physical microphone or PC capture was used for these checks.
+
+- The source and frozen console process workflows passed: offline catalog, invalid-input JSON, discovery, background startup/reuse, settings through stdin, memory-only secret input without echo, demo captions, invitation creation, session stop and Runtime stop. Tests use an unrelated working directory, Japanese/space-containing profile paths and inherited ASCII stdout encoding. Frozen checks remove development tools from PATH.
+- Agent responses use one versioned JSON envelope and stable exit codes. Tests cover credential/URL redaction, rejected redirects and foreign loopback identity, strict settings input, malformed/duplicate JSON keys, request failures and shutdown response loss. Mutations are not automatically repeated.
+- Status omits transcript text. Snapshot responses default to ten recent captions; explicit limits up to 100 report total count and truncation. A single-command catalog limits the context needed by a smaller model. This is a deterministic interface design, not a benchmark of a particular model's task success.
+- A real authenticated HTTP/WebSocket test with a synthetic driver exercises one-second headless sharing, owner acquisition/release and logout. Other agents and ordinary browser disconnections cannot release that capture. Physical capture and audible output remain unverified.
+- A real synthetic hung child process verifies cancellation-safe and concurrent audio stop. Runtime retains a failed worker stop for retry. Generated command catalog, output schema, document index and local documentation links are checked for drift.
+- The documented PowerShell demo sequence was executed verbatim through successful Runtime shutdown. Existing browser E2E scenarios still pass with scoped audio ownership.
 
 Source and frozen process smoke tests cover an unrelated working directory, Japanese/space-containing data paths, an occupied preferred port, authenticated bootstrap, untrusted access rejection, missing-asset 404, sample-driven translated demo captions, second-launch reuse, conversation stop, authenticated application stop, and restart. A process ID alone is never trusted or killed. Runtime tests also check that startup invokes no provider/capture/tunnel, and that driver teardown failure does not prevent other owned resources from closing. Two concurrent Uvicorn signal handlers were found to restore stale callbacks; the Runtime now leaves signal ownership to the CLI/asyncio runner.
 

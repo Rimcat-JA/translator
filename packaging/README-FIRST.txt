@@ -1,5 +1,13 @@
 Translator 0.2.0 preview — Windows x64
 
+AIエージェントはコンソール版を使用します:
+TranslatorAgent.exe agent catalog
+TranslatorAgent.exe agent status
+各コマンドはJSONを1件返します。okと終了コードを確認してください。
+Translator.exeは人間用のブラウザ起動、TranslatorAgent.exeはJSON操作用です。
+agent runtime-startは画面・マイク・PC音声・公開を開始しません。
+手順: https://github.com/Rimcat-JA/translator/blob/main/docs/agents/index.md
+
 ZIPをすべて展開し、Translator.exeを起動してください。
 ブラウザが開いたら「デモを試す」で、APIキーなしのローカルデモを利用できます。
 起動しただけでは音声は取得・送信されません。

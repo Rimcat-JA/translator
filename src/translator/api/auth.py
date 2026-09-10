@@ -85,6 +85,9 @@ class AuthManager:
     def leave(self, token: str) -> None:
         self._participants.pop(self._hash(token), None)
 
+    def logout_local(self, token: str) -> None:
+        self._local.pop(self._hash(token), None)
+
     def revoke_session(self, session_id: str) -> None:
         self._participants = {k: v for k, v in self._participants.items()
                               if v.session_id != session_id}

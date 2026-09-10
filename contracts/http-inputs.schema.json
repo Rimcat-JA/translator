@@ -278,6 +278,19 @@
           "title": "Enabled",
           "type": "boolean"
         },
+        "owner_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Owner Id"
+        },
         "request_id": {
           "maxLength": 128,
           "minLength": 1,

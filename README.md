@@ -2,9 +2,32 @@
 
 **相手の言葉を字幕で読む。自分のPCの音声を相手へ送る。**
 
-字幕を見る人（A）のWindows PCでアプリを起動し、話す人（B）は招待リンクからブラウザで参加します。Bの音声を文字起こし・翻訳してA/B画面に表示し、Aが開始したPC音声共有をBで再生します。翻訳の音声合成・双方向の自動音声翻訳は含みません。
+主な操作者は **AIエージェント** です。字幕を見る人（A）のWindows PCで、エージェントがCLIから起動・設定・会話・招待・停止を管理します。話す人（B）は招待リンクからブラウザで参加します。Bの音声を文字起こし・翻訳してA/B画面に表示し、Aが開始したPC音声共有をBで再生します。翻訳の音声合成・双方向の自動音声翻訳は含みません。
 
 現在は **0.2.0プレビュー** です。Windows配布物を作るCIと、実行ファイルの起動試験を備えています。実API・別PCとの遠隔音声・クリーンVMでの試験結果は、[検証記録](docs/verification.md)を確認してください。
+
+## AIエージェントから使う
+
+最初に [AGENTS.md](AGENTS.md) を読み、目的に応じた短い手順へ進んでください。ホストの操作には、画面のクリックではなく `translator agent` の名前付きコマンドを使います。
+
+```sh
+uv run --locked translator agent catalog --command runtime-start
+```
+
+- [最短手順：独立したデータディレクトリでデモを開始・確認・停止](docs/agents/quickstart.md)
+- [操作一覧：設定・実通訳・招待・公開・時間を指定したPC音声共有](docs/agents/operations.md)
+- [失敗時の復旧手順](docs/agents/troubleshooting.md) / [コードとテストの対応表](docs/agents/repository-map.md)
+- [エージェント文書の索引](docs/agents/index.md) / [機械可読索引](docs/agents/index.json) / [コマンド契約](contracts/agent-interface.json)
+
+`catalog --command` で必要な操作だけを読み、全コマンドの列挙が必要なときだけ `--command` を省略してください。各コマンドはJSONを返します。終了コードと `ok` を確認し、返されたセッションIDを次のコマンドに渡します。ポートやIDを推測せず、同じ `--data-dir` を使ってください。
+
+通常の状態確認には会話本文を返さない `status` を使います。字幕が必要な場合だけ `session-snapshot --limit` で取得件数を指定します（既定10件、最大100件）。Runtimeを起動しただけでは、会話・マイク・PC音声の送信は始まりません。デモは `session-create --mode demo`、実通訳は `--mode live` を明示して選びます。
+
+**新しいエージェントCLIは、現在のソースから利用してください。公開済みの `v0.2.0-preview.1` には、このCLIとエージェント用実行ファイルは含まれていません。** ソースにはuvとNode.js 24/npmが必要です。B側のブラウザ参加とマイク許可は、エージェントのホスト操作とは別に必要です。
+
+## 人がブラウザで操作する場合
+
+以下は既存の人向けガイドです。React画面からも起動後の設定・字幕表示・診断を操作できます。
 
 ![Translatorホーム](docs/screenshots/home.png)
 
