@@ -1,0 +1,314 @@
+{
+  "$defs": {
+    "CreateSession": {
+      "additionalProperties": false,
+      "properties": {
+        "demo": {
+          "default": false,
+          "title": "Demo",
+          "type": "boolean"
+        },
+        "request_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
+        "source_language": {
+          "default": "zh",
+          "maxLength": 12,
+          "minLength": 2,
+          "title": "Source Language",
+          "type": "string"
+        },
+        "target_language": {
+          "default": "ja",
+          "maxLength": 12,
+          "minLength": 2,
+          "title": "Target Language",
+          "type": "string"
+        },
+        "translation_enabled": {
+          "default": true,
+          "title": "Translation Enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "request_id"
+      ],
+      "title": "CreateSession",
+      "type": "object"
+    },
+    "ImportBody": {
+      "additionalProperties": false,
+      "properties": {
+        "persist": {
+          "default": false,
+          "title": "Persist",
+          "type": "boolean"
+        },
+        "request_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id"
+      ],
+      "title": "ImportBody",
+      "type": "object"
+    },
+    "InviteBody": {
+      "additionalProperties": false,
+      "properties": {
+        "request_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
+        "role": {
+          "const": "speaker",
+          "default": "speaker",
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id"
+      ],
+      "title": "InviteBody",
+      "type": "object"
+    },
+    "LeaseBody": {
+      "additionalProperties": false,
+      "properties": {
+        "lease_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lease Id"
+        },
+        "release": {
+          "default": false,
+          "title": "Release",
+          "type": "boolean"
+        },
+        "request_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id"
+      ],
+      "title": "LeaseBody",
+      "type": "object"
+    },
+    "Mutation": {
+      "additionalProperties": false,
+      "properties": {
+        "request_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id"
+      ],
+      "title": "Mutation",
+      "type": "object"
+    },
+    "SecretBody": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "maxLength": 4096,
+          "title": "Key",
+          "type": "string"
+        },
+        "persist": {
+          "default": true,
+          "title": "Persist",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "SecretBody",
+      "type": "object"
+    },
+    "SettingsPatch": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Revision"
+        },
+        "request_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
+        "settings": {
+          "additionalProperties": true,
+          "title": "Settings",
+          "type": "object"
+        }
+      },
+      "required": [
+        "request_id",
+        "settings"
+      ],
+      "title": "SettingsPatch",
+      "type": "object"
+    },
+    "StreamStart": {
+      "additionalProperties": false,
+      "properties": {
+        "channels": {
+          "const": 1,
+          "title": "Channels",
+          "type": "integer"
+        },
+        "format": {
+          "const": "pcm_s16le",
+          "title": "Format",
+          "type": "string"
+        },
+        "frame_samples": {
+          "maximum": 1600,
+          "minimum": 1,
+          "title": "Frame Samples",
+          "type": "integer"
+        },
+        "protocol_version": {
+          "const": 1,
+          "title": "Protocol Version",
+          "type": "integer"
+        },
+        "publisher_lease_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Publisher Lease Id",
+          "type": "string"
+        },
+        "sample_rate": {
+          "const": 16000,
+          "title": "Sample Rate",
+          "type": "integer"
+        },
+        "session_epoch": {
+          "title": "Session Epoch",
+          "type": "integer"
+        },
+        "source_kind": {
+          "const": "microphone",
+          "title": "Source Kind",
+          "type": "string"
+        },
+        "stream_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Stream Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "stream.start",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "protocol_version",
+        "stream_id",
+        "session_epoch",
+        "publisher_lease_id",
+        "source_kind",
+        "format",
+        "sample_rate",
+        "channels",
+        "frame_samples"
+      ],
+      "title": "StreamStart",
+      "type": "object"
+    },
+    "SystemAudioBody": {
+      "additionalProperties": false,
+      "properties": {
+        "device_id": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Device Id"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "request_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "enabled"
+      ],
+      "title": "SystemAudioBody",
+      "type": "object"
+    },
+    "TokenBody": {
+      "additionalProperties": false,
+      "properties": {
+        "token": {
+          "maxLength": 200,
+          "minLength": 16,
+          "title": "Token",
+          "type": "string"
+        }
+      },
+      "required": [
+        "token"
+      ],
+      "title": "TokenBody",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Translator HTTP inputs and audio stream handshake"
+}

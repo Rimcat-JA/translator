@@ -10,3 +10,15 @@ ngrok.yml
 .vscode/
 .idea/
 *.log
+.venv/
+node_modules/
+frontend/dist/
+src/translator/resources/web/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.translator-test/
+playwright-report/
+test-results/
