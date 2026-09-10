@@ -1,0 +1,65 @@
+name: Translator checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          version: '0.11.31'
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: uv sync --locked
+      - run: npm --prefix frontend ci
+      - run: npm --prefix frontend run typecheck
+      - run: npm --prefix frontend test
+      - run: uv run --locked pytest
+      - run: uv run --locked python tools/export_contracts.py --check
+      - run: uv run --locked python tools/build_frontend.py
+      - run: uv run --locked python tools/smoke_runtime.py
+      - run: npx --prefix frontend playwright install --with-deps chromium
+      - run: npm --prefix frontend run test:e2e
+      - uses: actions/upload-artifact@v7.0.1
+        if: failure()
+        with:
+          name: test-results-${{ matrix.os }}
+          path: |
+            frontend/test-results
+            frontend/playwright-report
+  windows-preview:
+    needs: verify
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          version: '0.11.31'
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: .node-version
+      - run: uv sync --locked
+      - run: uv run --locked python tools/build_frontend.py
+      - run: uv run --locked pyinstaller --noconfirm packaging/translator.spec
+      - run: uv run --locked python tools/smoke_runtime.py --exe dist/Translator-windows-x64/Translator.exe
+      - run: uv run --locked python tools/package_release.py
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: Translator-windows-x64-preview
+          path: |
+            dist/Translator-windows-x64-preview.zip
+            dist/SHA256SUMS.txt
+          retention-days: 30

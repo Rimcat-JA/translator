@@ -1,0 +1,3 @@
+import type { Caption, Snapshot } from './model';
+export function caption(id = 'a'): Caption { return { utterance_id: id, stt_epoch: 1, source_language: 'zh', target_language: 'ja', original: { text: '你好', revision: 2, is_final: true }, translation: { text: 'こんにちは', status: 'ready', revision: 3, based_on_original_revision: 2, translation_epoch: 1, is_final: true } }; }
+export function snapshot(): Snapshot { return { session_id: 's', session_epoch: 1, revision: 1, status: 'running', demo: true, source_language: 'zh', target_language: 'ja', translation_enabled: true, captions: {}, components: {}, last_event_seq: 4 }; }

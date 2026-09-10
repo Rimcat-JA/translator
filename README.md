@@ -1,209 +1,109 @@
+# Translator
 
+**相手の言葉を字幕で読む。自分のPCの音声を相手へ送る。**
 
-## セットアップ
+字幕を見る人（A）のWindows PCでアプリを起動し、話す人（B）は招待リンクからブラウザで参加します。Bの音声を文字起こし・翻訳してA/B画面に表示し、Aが開始したPC音声共有をBで再生します。翻訳の音声合成・双方向の自動音声翻訳は含みません。
 
-```bash
-python -m venv venv
-venv\Scriptsctivate        # Windows
-# source venv/bin/activate   # macOS / Linux
+現在は **0.2.0プレビュー** です。Windows配布物を作るCIと、実行ファイルの起動試験を備えています。実API・別PCとの遠隔音声・クリーンVMでの試験結果は、[検証記録](docs/verification.md)を確認してください。
 
-pip install -r requirements.txt
+![Translatorホーム](docs/screenshots/home.png)
 
-copy .env.example .env
+## 1. アプリを起動する
+
+Windows x64配布ZIPをすべて展開し、`Translator.exe`を起動します。Python、Node.js、uv、Gitは配布版の実行には不要です。
+
+[Windowsプレビュー版をダウンロード](https://github.com/Rimcat-JA/translator/releases/tag/v0.2.0-preview.1)
+
+配布物は[GitHub Actions](https://github.com/Rimcat-JA/translator/actions)の成功した`Translator checks`実行から、`Translator-windows-x64-preview`アーティファクトを取得できます。ZIP・`SHA256SUMS.txt`・未署名である旨を同梱します。取得にはGitHubへのログインが必要な場合があります。
+
+```powershell
+Get-FileHash .\Translator-windows-x64-preview.zip -Algorithm SHA256
 ```
 
-`.env` を編集して API キーを設定してください。
+アプリを開いた段階では、マイク取得・PC音声共有・外部API通信は開始しません。起動済みなら、同じアプリの画面を再表示します。
 
----
+## 2. 最初の設定
 
-## フェーズ 1 — B のマイク音声をサーバーに届ける
+まず「デモを試す」で、APIキー・マイクなしのローカルデモを利用できます。デモは実際の音声認識ではありません。
 
-### 1. サーバーを起動
+実通訳では設定画面で音声認識用のGladiaキー、翻訳用のDeepLキーとFree/Pro区分を入力します。キーはOSの資格情報ストア、または利用者が選んだ今回限りのメモリへ保存します。画面には保存状態だけを返します。接続テストはボタンを押したときにだけ実行され、Gladiaでは外部セッションを作るため使用量が発生し得ます。
 
-```bash
-python -m uvicorn server.main:app --reload --host 0.0.0.0 --port 8000
+A側で「通訳を開始」を押し、必要に応じて「PC音声共有」を別途開始します。PC音声には選んだ出力機器で再生する通知音等も含まれます。
+
+## 3. 相手が参加する
+
+同じPCで試すときは招待リンクを別のブラウザ画面で開けます。別PCから参加する場合は設定画面でngrok認証・公開ドメインを設定し、公開を開始してから招待リンクを発行します。転送対象は参加用Hubだけです。
+
+Bは招待リンクを開いて「参加してマイクを開始」を押し、マイクを許可します。招待は10分・1回限りです。Bのマイク送信は1画面だけが取得でき、同時送信を防ぎます。HTTPSが必要で、localhost/loopbackでの同一PC試験は例外です。
+
+- Bのマイク音声 → Gladia（文字起こし）
+- 認識したテキスト → DeepL（翻訳がオンで、入力と出力の言語が異なる場合）
+- Aが共有を開始したPC音声 → B
+- リモート参加の通信 → ngrokを経由
+
+音声と会話本文をディスクへ保存しません。画面用の字幕はメモリに最大100発言を保持し、会話終了時に消去します。
+
+## 開発・ソースからの利用
+
+Python 3.13.13をuvで管理し、Node.js 24系でUIをビルドします。ソース導線はuvとNode.js/npmの導入を前提とします。初回はネットワークが必要です。
+
+```powershell
+.\start.cmd
 ```
 
-### 2. B のマイク送信クライアントを起動（別ターミナル）
-
-```bash
-python client_b/mic_sender.py
+```sh
+./start.sh
 ```
 
-マイクに向かって話すと、サーバーのターミナルにチャンク受信ログが流れます。
+仮想環境のactivate・別ターミナル・手動ビルドは不要です。フロントエンド入力とlockfileが変化したときだけ必要なビルドを行い、通常実行時にNode.jsサーバーを常駐させません。
 
----
-
-## フェーズ 2 — ダミー STT + 翻訳 + A 画面表示
-
-### 1. 依存パッケージを更新
-
-```bash
-pip install -r requirements.txt
+```sh
+uv run --locked translator start --demo
+uv run --locked translator start --no-browser
+uv run --locked translator doctor
+uv run --locked translator stop
+uv run --locked translator dev
 ```
 
-### 2. サーバーを起動
+`dev`はLocal/Hubと、それぞれを転送するVite（5173/5174）を一緒に起動します。PC音声キャプチャの優先対象はWindows x64です。macOS/Linuxはサーバー・UI開発とデモ用途で、PC音声取得の対応を表示しません。
 
-```bash
-python -m uvicorn server.main:app --reload --host 0.0.0.0 --port 8000
+## テストとWindowsビルド
+
+```sh
+uv sync --locked
+npm --prefix frontend ci
+npm --prefix frontend run typecheck
+npm --prefix frontend test
+uv run --locked pytest
+uv run --locked python tools/build_frontend.py
+uv run --locked python tools/smoke_runtime.py
+npm --prefix frontend exec playwright install chromium
+npm --prefix frontend run test:e2e
 ```
 
-### 3. ブラウザで A の画面を開く
+Windowsで配布物を作る場合:
 
-http://localhost:8000/a
-
-### 4. B のマイク送信クライアントを起動（別ターミナル）
-
-```bash
-python client_b/mic_sender.py
+```sh
+uv run --locked pyinstaller --noconfirm packaging/translator.spec
+uv run --locked python tools/smoke_runtime.py --exe dist/Translator-windows-x64/Translator.exe
+uv run --locked python tools/package_release.py
 ```
 
-### 5. マイクに向かって話す
+自動テストは有料APIを使いません。Windows実行ファイルの試験ではPATHから開発ツールを外して起動しますが、これは開発ツールをインストールしていないクリーンVM試験とは区別します。
 
-約3秒ごとにダミーの中国語テキストと翻訳結果がブラウザに流れます。
+## 困ったとき
 
-| 表示色 | 意味 |
-|--------|------|
-| 灰色   | 確定前（interim）— 同じ行が上書きされます |
-| 白     | 確定済み（final）— 行として固定されます |
+- 画面が開かない: `translator doctor`で資産・設定・依存を確認してください。配布版は`Translator.exe doctor`相当の診断を画面から利用できます。
+- キーを保存できない: 安全なOS資格情報ストアが利用できない場合は「今回のみ」を選びます。平文ファイルには切り替えません。
+- マイクを開始できない: B側のブラウザ許可、入力機器、HTTPS接続、他画面の送信権を確認します。
+- 翻訳エラー: 原文は残り、翻訳の失敗が表示されます。キー・Free/Pro区分・利用量を確認してください。
+- PC音声が届かない: Aで共有を明示開始し、Bでも音声を有効にしてください。A画面との接続が失われると共有を停止します。
+- アプリ終了: 診断画面の終了操作、または`translator stop`。ブラウザを閉じた後もRuntimeは再表示用に残ります。
 
----
+設定・ログはWindowsでは`%LOCALAPPDATA%\Translator\`です。設定の破損時は元ファイルを退避します。既存`.env`は設定画面で取り込みを選んだときだけ読み、元ファイルは残します。
 
-## フェーズ 3 — A → B 音声リレー
+## 旧版からの変更
 
-### 1. 依存パッケージを更新（`soundcard` が追加されています）
+旧`server.main:app`の未認証エンドポイントは無効にしています。旧音声CLI・HTMLは移行時の参照として残っていますが、新しいRuntimeには接続できません。旧URLを認証なしで並行公開しないでください。
 
-```bash
-pip install -r requirements.txt
-```
-
-### 起動順序（この順番を守ること）
-
-```bash
-# [1] サーバー
-python -m uvicorn server.main:app --reload --host 0.0.0.0 --port 8000
-
-# [2] B: A の音声を受信して再生（別ターミナル）
-python client_b/audio_player.py
-
-# [3] B: マイク音声をサーバーに送信（別ターミナル）
-python client_b/mic_sender.py
-
-# [4] ブラウザで A の画面を開く
-#     http://localhost:8000/a
-
-# [5] A: スピーカー音声をループバックキャプチャして送信（別ターミナル）
-python client_a/audio_capture.py
-```
-
-### 動作確認
-
-- A の PC で YouTube・通知音などを鳴らすと、B のスピーカーから同じ音が聞こえる
-- 同時に B がマイクで話すと、A のブラウザにダミー翻訳が表示される（フェーズ2の継続確認）
-- サーバーログで `[from_A] chunks=50 b_subscribers=1` のようなログが流れる
-
-### 注意
-
-`audio_capture.py` は WASAPI ループバックを使用します。起動時にターミナルに
-「`Loopback device: ...`」と表示されるので、正しいスピーカーが選ばれているか確認してください。
-
----
-
-## フェーズ 5 — 本物の STT (Gladia) + 翻訳 (DeepL) への切り替え
-
-### 1. 依存パッケージを更新（`httpx` が追加されています）
-
-```bash
-pip install -r requirements.txt
-```
-
-### 2. API キーの取得
-
-| サービス | 登録URL | 無料枠 |
-|---------|---------|--------|
-| Gladia  | https://app.gladia.io | 600分/月 |
-| DeepL   | https://www.deepl.com/pro-api | 500,000文字/月 |
-
-### 3. .env ファイルの設定
-
-```
-GLADIA_API_KEY=取得したキー
-DEEPL_API_KEY=取得したキー（末尾に :fx が付く Free キー）
-STT_PROVIDER=gladia
-TRANSLATION_PROVIDER=deepl
-```
-
-ダミーに戻す場合は `STT_PROVIDER=dummy` / `TRANSLATION_PROVIDER=dummy` に変更。
-
-### 4. 起動と動作確認
-
-```bash
-# [1] サーバー（起動ログに "STT: GladiaSTTProvider" と表示されれば成功）
-python -m uvicorn server.main:app --reload --host 0.0.0.0 --port 8000
-
-# [2] B: audio_player.py（別ターミナル）
-python client_b/audio_player.py
-
-# [3] B: mic_sender.py（別ターミナル）
-python client_b/mic_sender.py
-
-# [4] ブラウザで A の画面を開く
-#     http://localhost:8000/a
-```
-
-
----
-
-## リモート接続（ngrok 経由）
-
-サーバーを ngrok 経由で外部に公開する手順:
-
-### 1. ngrok を起動
-
-```bash
-ngrok http 8000
-```
-
-### 2. 表示された URL をメモ
-
-```
-Forwarding  https://xxxx.ngrok-free.dev -> http://localhost:8000
-```
-
-### 3. クライアント側の .env を更新
-
-```
-SERVER_URL=wss://xxxx.ngrok-free.dev
-```
-
-`ws://` ではなく `wss://`（TLS あり）であることに注意してください。
-
-### 4. 各クライアントと URL
-
-| 役割 | URL |
-|------|-----|
-| A の画面 | `https://xxxx.ngrok-free.dev/a` |
-| B の画面 | `https://xxxx.ngrok-free.dev/b` |
-| client_a/audio_capture.py | `.env` の `SERVER_URL` を参照 |
-| client_b/mic_sender.py | `.env` の `SERVER_URL` を参照 |
-| client_b/audio_player.py | `.env` の `SERVER_URL` を参照 |
-
-ブラウザ画面（web_a / web_b）は表示元のオリジンから自動的に WebSocket URL を組み立てるため、`.env` の変更は不要です。
-
----
-
-## ディレクトリ構成
-
-```
-myapp/
-├── server/          # FastAPI + WebSocket 中央ハブ
-├── client_a/        # A 側クライアント（フェーズ3〜）
-├── client_b/        # B 側クライアント
-├── web_a/           # A のテレプロンプター UI
-├── web_b/           # B のフィードバック UI（フェーズ2〜）
-├── shared/          # STT / 翻訳の抽象化ライブラリ
-├── .env.example
-├── .gitignore
-├── requirements.txt
-└── README.md
-```
+[実装API](contracts/implementation-api.md) / [アーキテクチャ](docs/architecture.md) / [検証記録](docs/verification.md)

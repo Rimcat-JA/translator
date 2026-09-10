@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "translator-desktop"
+version = "0.2.0"
+description = "Local-first translated captions and PC audio sharing"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "fastapi>=0.115,<1", "uvicorn>=0.34,<1", "pydantic>=2.10,<3",
+  "httpx>=0.28,<1", "websockets>=15,<17", "numpy>=2.2,<3",
+  "soundcard>=0.4.4,<1; sys_platform == 'win32'",
+  "keyring>=25.6,<26", "ngrok>=1.4,<2", "python-dotenv>=1.1,<2",
+]
+
+[project.scripts]
+translator = "translator.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3,<10", "pytest-asyncio>=0.25,<2", "pyinstaller>=6.12,<7", "ruff>=0.11,<1"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/translator"]
+
+[tool.hatch.build]
+artifacts = ["src/translator/resources/web/**"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

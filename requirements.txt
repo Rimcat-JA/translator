@@ -1,9 +1,2 @@
-fastapi
-uvicorn[standard]
-websockets
-sounddevice
-numpy
-python-dotenv
-aiofiles
-soundcard
-httpx
+# Source compatibility only. Reproducible installs use: uv sync --locked
+-e .
