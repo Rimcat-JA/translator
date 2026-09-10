@@ -2,6 +2,12 @@
   "catalog_version": 1,
   "executable": "translator agent",
   "output_schema_version": 1,
+  "discovery": {
+    "primary_command": "search",
+    "query_argument": "--query",
+    "workflow": "Search by goal, check status and prerequisites, then execute the retrieved formal command with observed inputs.",
+    "search_result_schema": "contracts/agent-search.schema.json"
+  },
   "global_arguments": [
     {
       "name": "--data-dir",
@@ -28,6 +34,7 @@
           "description": "Return only one command definition to reduce agent context.",
           "choices": [
             "catalog",
+            "search",
             "status",
             "runtime-start",
             "runtime-stop",
@@ -61,6 +68,44 @@
       "retry": {
         "automatic": false,
         "guidance": "Do not retry mutations automatically; inspect status after an uncertain response."
+      }
+    },
+    {
+      "name": "search",
+      "summary": "Primary agent entry: retrieve command summaries and exact specifications for a Japanese or English goal, offline. Retrieval never executes a command.",
+      "arguments": [
+        {
+          "name": "--query",
+          "type": "string",
+          "required": true,
+          "description": "One natural-language goal or an exact command name; 1–1024 characters, no credentials.",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        {
+          "name": "--limit",
+          "type": "integer",
+          "required": false,
+          "description": "Maximum retrieved command or limitation cards. Check retrieval status before choosing.",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 5
+        }
+      ],
+      "effects": {
+        "starts_runtime": false,
+        "starts_audio": false,
+        "external_network": false,
+        "writes_settings": false,
+        "returns_sensitive": false
+      },
+      "examples": [
+        "translator agent search --query \"アプリを起動したい\"",
+        "translator agent search --query \"read recent captions\""
+      ],
+      "retry": {
+        "automatic": false,
+        "guidance": "Read-only offline retrieval; rephrase an ambiguous or unmatched goal before any execution."
       }
     },
     {

@@ -45,12 +45,31 @@ def main():
 
         catalog = run("catalog")["data"]
         assert "session-create" in {item["name"] for item in catalog["commands"]}
-        assert not profile.exists(), "Catalog must not initialize a profile"
+        entry = run()["data"]
+        assert [item["name"] for item in entry["commands"]] == ["search"]
+
+        def discover(query, expected):
+            result = run("search", "--query", query)["data"]
+            assert result["status"] == "matched", (query, result["status"])
+            definition = result["candidates"][0]["definition"]
+            assert definition["name"] == expected, (query, definition["name"])
+            assert definition == run("catalog", "--command", expected)["data"]["commands"][0]
+            return definition["name"]
+
+        start_command = discover("アプリを起動したい", "runtime-start")
+        create_command = discover("オフラインのデモ会話を作成したい", "session-create")
+        captions_command = discover("read recent captions", "session-snapshot")
+        assert run("search", "--query", "開始", "--limit", "1")["data"]["status"] == "ambiguous"
+        unsupported = run("search", "--query", "翻訳文を合成音声で読み上げたい")["data"]
+        assert unsupported["status"] == "unsupported"
+        assert unsupported["candidates"][0]["definition"] is None
+        assert run("search", "--query", "astronomy nebula galaxy")["data"]["status"] == "no_match"
+        assert not profile.exists(), "Offline discovery must not initialize a profile"
         invalid = run("session-create", "--mode", "not-a-mode", check=False)
         assert invalid["error"]["code"] == "INVALID_ARGUMENTS"
         assert run("status")["data"] == {"running": False}
         try:
-            started = run("runtime-start", "--timeout", "60")["data"]
+            started = run(start_command, "--timeout", "60")["data"]
             assert started["running"] is True
             repeated = run("runtime-start")["data"]
             assert repeated["already_running"] and repeated["instance_id"] == started["instance_id"]
@@ -61,11 +80,11 @@ def main():
             assert run("settings-set", "--input", "-", input_text=change)["data"]["caption_font_size"] == 36
             configured = run("secret-set", "--provider", "gladia", "--input", "-", input_text=secret)["data"]
             assert configured["configured"] and configured["storage"] == "memory"
-            sid = run("session-create", "--mode", "demo")["data"]["session_id"]
+            sid = run(create_command, "--mode", "demo")["data"]["session_id"]
             assert run("session-start", "--session-id", sid)["data"]["status"] == "running"
             deadline = time.monotonic() + 12
             while time.monotonic() < deadline:
-                snapshot = run("session-snapshot", "--session-id", sid)["data"]
+                snapshot = run(captions_command, "--session-id", sid)["data"]
                 if any(row["translation"]["status"] == "ready" for row in snapshot["captions"].values()):
                     break
                 time.sleep(.2)
@@ -79,7 +98,7 @@ def main():
             assert run("status")["data"] == {"running": False}
         finally:
             run("runtime-stop", check=False)
-        print(f"PASS {'frozen' if args.exe else 'source'} agent JSON workflow: catalog/auth/settings/demo/invite/stop")
+        print(f"PASS {'frozen' if args.exe else 'source'} agent JSON workflow: retrieval/catalog/auth/settings/demo/invite/stop")
 
 
 if __name__ == "__main__":

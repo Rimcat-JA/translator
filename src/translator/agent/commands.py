@@ -40,6 +40,14 @@ def _definition(name, summary, arguments=(), *, starts_runtime=False, starts_aud
 
 COMMANDS = [
     _definition("catalog", "Return this offline command catalog; no runtime or files are required."),
+    _definition("search", "Primary agent entry: retrieve command summaries and exact specifications for a Japanese or English goal, offline. Retrieval never executes a command.",
+                [_argument("--query", required=True, minLength=1, maxLength=1024,
+                           description="One natural-language goal or an exact command name; 1–1024 characters, no credentials."),
+                 _argument("--limit", "integer", default=3, minimum=1, maximum=5,
+                           description="Maximum retrieved command or limitation cards. Check retrieval status before choosing.")],
+                examples=['translator agent search --query "アプリを起動したい"',
+                          'translator agent search --query "read recent captions"'],
+                retry="Read-only offline retrieval; rephrase an ambiguous or unmatched goal before any execution."),
     _definition("status", "Discover the runtime. Missing runtime succeeds with running:false. Running status includes settings, session metadata and caption_count, without transcript text."),
     _definition("runtime-start", "Start a detached runtime without opening a browser or starting a session/audio. Source startup may build missing assets.",
                 [_argument("--timeout", "number", default=60, minimum=1, maximum=300, description="Maximum readiness wait in seconds.")],
@@ -90,6 +98,9 @@ COMMANDS[0]["arguments"] = [_argument("--command", choices=[item["name"] for ite
 
 def catalog(command: str | None = None) -> dict:
     return {"catalog_version": 1, "executable": "translator agent", "output_schema_version": 1,
+            "discovery": {"primary_command": "search", "query_argument": "--query",
+                          "workflow": "Search by goal, check status and prerequisites, then execute the retrieved formal command with observed inputs.",
+                          "search_result_schema": "contracts/agent-search.schema.json"},
             "global_arguments": [_argument("--data-dir", description="Use one isolated runtime profile; accepted before or after the command.")],
             "exit_codes": {"0": "success", "2": "invalid input", "3": "runtime discovery or authentication failed",
                            "4": "operation failed or outcome is uncertain"},
@@ -99,7 +110,7 @@ def catalog(command: str | None = None) -> dict:
 class JsonParser(argparse.ArgumentParser):
     def error(self, message):
         raise AgentError("INVALID_ARGUMENTS", "Arguments do not match the command contract.", 2,
-                         next_action="Run translator agent catalog and use the named command arguments.")
+                         next_action="Use translator agent search --query GOAL to discover an operation, or catalog --command NAME for its arguments.")
 
 
 def _identifier(value: str) -> str:
@@ -128,6 +139,12 @@ def _integer(maximum):
     return validate
 
 
+def _query(value: str) -> str:
+    if not value.strip() or len(value) > 1024 or any(ord(char) < 32 and char not in "\t\r\n" for char in value):
+        raise argparse.ArgumentTypeError("Invalid query")
+    return value
+
+
 def parser() -> JsonParser:
     result = JsonParser(prog="translator agent", add_help=False, allow_abbrev=False)
     subcommands = result.add_subparsers(dest="command", required=True, parser_class=JsonParser)
@@ -150,6 +167,8 @@ def parser() -> JsonParser:
                 options["type"] = _duration(argument["maximum"])
             elif name == "--command":
                 options["dest"] = "catalog_command"
+            elif name == "--query":
+                options["type"] = _query
             elif name in {"--source-language", "--target-language"}:
                 options["choices"] = [language["code"] for language in SUPPORTED_LANGUAGES]
             elif name == "--translation-enabled":
@@ -385,12 +404,18 @@ def main(argv: list[str] | None = None) -> int:
         if remaining and remaining[0] in names:
             command = remaining[0]
         if not remaining or "--help" in remaining or "-h" in remaining:
-            selection = command if command != "unknown" and command != "catalog" else None
+            selection = command if command != "unknown" else "search"
             command, data = "catalog", catalog(selection)
         else:
             arguments = parser().parse_args(remaining)
             command = arguments.command
-            data = catalog(arguments.catalog_command) if command == "catalog" else execute(arguments, directory or data_directory())
+            if command == "catalog":
+                data = catalog(arguments.catalog_command)
+            elif command == "search":
+                from .retrieval import search
+                data = search(arguments.query, COMMANDS, limit=arguments.limit)
+            else:
+                data = execute(arguments, directory or data_directory())
         output = {"schema_version": 1, "ok": True, "command": command,
                   "data": public_result(data, allow_invite=command == "invite-create"), "error": None}
         code = 0

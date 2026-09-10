@@ -8,7 +8,7 @@ Environment: Windows 11 x64, Python 3.13.13, Node 24.13.0, locked Python/npm dep
 
 | Check | Result |
 |---|---|
-| Python API, session, config, providers, audio, runtime, agent CLI and contract tests | 135 passed |
+| Python API, session, config, providers, audio, runtime, agent CLI, retrieval and contract tests | 231 passed |
 | Frontend type checking and production build | Passed |
 | Frontend reducer, audio DSP and UI tests | 23 unique tests passed |
 | Actual source process startup/shutdown/restart | Passed twice |
@@ -30,6 +30,43 @@ The agent interface is newer than the published `v0.2.0-preview.1` ZIP. Its entr
 - A real authenticated HTTP/WebSocket test with a synthetic driver exercises one-second headless sharing, owner acquisition/release and logout. Other agents and ordinary browser disconnections cannot release that capture. Physical capture and audible output remain unverified.
 - A real synthetic hung child process verifies cancellation-safe and concurrent audio stop. Runtime retains a failed worker stop for retry. Generated command catalog, output schema, document index and local documentation links are checked for drift.
 - The documented PowerShell demo sequence was executed verbatim through successful Runtime shutdown. Existing browser E2E scenarios still pass with scoped audio ownership.
+
+## Retrieval as the agent entry point
+
+Natural-language operation discovery now starts with `translator agent search --query`.
+The local knowledge index joins 19 bilingual command cards and three capability
+limitations to the exact executable catalog. BM25 term scoring and CJK character
+n-grams retrieve context for the calling agent. Search does not call an LLM,
+embedding service, provider or Runtime, and does not execute a retrieved command.
+Its bounded response carries formal arguments, effects, prerequisites, input
+sources and source anchors. An index digest identifies the reviewed knowledge.
+
+The committed [retrieval fixture](../tests/fixtures/agent_retrieval_eval.json)
+contains 66 Japanese/English cases: 52 clear command intents and 14 ambiguous,
+unrelated or unsupported intents. It covers every command in both languages.
+Cases were authored from the command contracts independently of the knowledge
+examples. Failures were inspected during development, so neither the full fixture
+nor its reviewer slice is an untouched holdout or a model capability benchmark.
+The evaluator gates top-1 accuracy at 90%, top-3 at 100%, overall status accuracy at
+95%, and special-case status and exact-definition contracts at 100%.
+
+The recorded run passed all gates: top-1 and top-3 were 52/52, overall status and
+exact-definition contracts were 66/66, and special-case status was 14/14. Fixture
+SHA256: `d56ab7d149115d73a9eac9019605281e25670e9b6f74277dee4d389953ceff3c`.
+
+Regression checks also cover bounded input/output, Unicode normalization, stable
+index hashes, exact catalog definitions, offline discovery without a profile,
+and negated command names that must not override capability limitations. The
+process smoke retrieves startup, demo creation and caption-reading definitions
+before executing the observed named commands with real returned session IDs.
+Both source and frozen Windows entry points run this same smoke in CI.
+
+The generated command contract, search data schema, knowledge index and document
+navigation are checked for drift. The external calling agent remains responsible
+for matching the result to the user's goal and checking observed state. This
+retrieval regression does not measure a smaller model's end-to-end task success.
+
+## Runtime and API checks
 
 Source and frozen process smoke tests cover an unrelated working directory, Japanese/space-containing data paths, an occupied preferred port, authenticated bootstrap, untrusted access rejection, missing-asset 404, sample-driven translated demo captions, second-launch reuse, conversation stop, authenticated application stop, and restart. A process ID alone is never trusted or killed. Runtime tests also check that startup invokes no provider/capture/tunnel, and that driver teardown failure does not prevent other owned resources from closing. Two concurrent Uvicorn signal handlers were found to restore stale callbacks; the Runtime now leaves signal ownership to the CLI/asyncio runner.
 

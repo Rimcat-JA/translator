@@ -2,8 +2,15 @@
   "schema_version": 1,
   "entrypoint": "AGENTS.md",
   "preferred_interface": "uv run --locked translator agent",
+  "primary_discovery": {
+    "command": "search",
+    "query_argument": "--query",
+    "read": "docs/agents/retrieval.md"
+  },
   "command_catalog": "contracts/agent-interface.json",
   "result_schema": "contracts/agent-result.schema.json",
+  "retrieval_index": "contracts/agent-knowledge.json",
+  "search_result_schema": "contracts/agent-search.schema.json",
   "pages": [
     {
       "path": "AGENTS.md",
@@ -12,6 +19,10 @@
     {
       "path": "docs/agents/index.md",
       "task": "Choose one short document"
+    },
+    {
+      "path": "docs/agents/retrieval.md",
+      "task": "Search a goal and use the retrieved command specification"
     },
     {
       "path": "docs/agents/quickstart.md",
@@ -42,6 +53,11 @@
     {
       "name": "catalog",
       "summary": "Return this offline command catalog; no runtime or files are required.",
+      "read": "docs/agents/operations.md"
+    },
+    {
+      "name": "search",
+      "summary": "Primary agent entry: retrieve command summaries and exact specifications for a Japanese or English goal, offline. Retrieval never executes a command.",
       "read": "docs/agents/operations.md"
     },
     {

@@ -10,8 +10,19 @@ the demo's recognition and translation pipeline runs locally.
 
 ```sh
 uv sync --locked
-uv run --locked translator agent catalog --command runtime-start
+uv run --locked translator agent search --query "ブラウザを開かずにバックグラウンドで起動したい" --limit 3
+uv run --locked translator agent search --query "APIキーとマイクなしでデモ用の会話を作成したい" --limit 3
 ```
+
+These are retrieval preflight checks. They work without a profile or running
+Runtime and execute nothing. Check `ok`, then retrieval `data.status`. Read the
+matching formal definitions, prerequisites, and input sources. The workflow needs
+`runtime-start`, then `session-create` with explicit `--mode demo`. Use
+`catalog --command` if you need one exact schema. If a result is ambiguous or lacks
+the required operation, use [Retrieval](retrieval.md) before continuing.
+
+The scripts below retain the precise lifecycle. They do not build shell commands
+from search text. The session ID is taken only from the successful create response.
 
 The published `v0.2.0-preview.1` executable cannot run this workflow. Use source.
 
@@ -105,6 +116,7 @@ conversation text unless the user requested that recording.
 
 ## Continue
 
-For an actual conversation, use [Operations](operations.md). Select `--mode live`
+For a different goal, search again and use [Operations](operations.md). For an
+actual conversation, select `--mode live`
 explicitly and configure the required providers. Starting a live session does not
 grant B browser microphone permission or start A PC audio sharing.

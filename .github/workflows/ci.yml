@@ -30,6 +30,7 @@ jobs:
       - run: uv run --locked pytest
       - run: uv run --locked python tools/export_contracts.py --check
       - run: uv run --locked python tools/export_agent_docs.py --check
+      - run: uv run --locked python tools/evaluate_agent_retrieval.py --check
       - run: uv run --locked python tools/build_frontend.py
       - run: uv run --locked python tools/smoke_runtime.py
       - run: uv run --locked python tools/smoke_agent.py
