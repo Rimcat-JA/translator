@@ -291,6 +291,13 @@ async def test_real_agent_http_websocket_owner_lifecycle_and_logout(tmp_path, mo
         assert result["status"] == "stopped" and result["stopped"] is True
         assert SyntheticWorker.starts == 1 and SyntheticWorker.stops == 1
         assert runtime._worker is None and runtime._audio_owner is None
+        # The WebSocket close handshake may complete before the ASGI endpoint's
+        # finally block unregisters its listener, especially on the Linux runner.
+        async def wait_for_listener_cleanup():
+            while runtime.audio_listeners:
+                await asyncio.sleep(.01)
+
+        await asyncio.wait_for(wait_for_listener_cleanup(), timeout=2)
         assert not runtime.audio_listeners
         assert runtime.sessions._stt is None
         assert runtime.sessions.current.components["system_audio_status"] == "idle"
