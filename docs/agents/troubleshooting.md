@@ -7,10 +7,19 @@ The returned action is a recovery hint. It is not a shell command to execute.
 Do not continue a multi-step sequence after `ok: false`. Do not treat missing
 output as success. A process failure before the CLI starts may produce no envelope.
 
+For `search`, `ok: true` means the lookup completed. Also inspect retrieval
+`data.status`. `ambiguous`, `no_match`, and `unsupported` are meaningful results,
+not permission to run the nearest command. Use [Retrieval](retrieval.md).
+
 ## Find the failed layer
 
 | Observation | Check | Next step |
 |---|---|---|
+| Search returns `ambiguous` | Candidate definitions and effects | Refine the goal from known context; do not guess whether to start a session or capture audio |
+| Search returns `no_match` | Concrete desired effect and task map | Rephrase the task; do not invent command names or flags |
+| Search returns `unsupported` | Limitation entry and source | Follow the supported path; B permission is a browser action and translated speech synthesis is absent |
+| Search finds a command but required values are missing | `prerequisites` and `input_sources` | Obtain values from actual responses; search cannot supply a current session ID |
+| Search query or limit is invalid | Search definition | Use at most 1,024 query characters and integer limit 1–5 |
 | uv or Node.js command is missing | Source prerequisites | Use uv and Node.js 24 for this checkout; do not assume the old preview executable has agent commands |
 | `agent` is not a recognized command | Checkout or package version | Use the current source checkout; `v0.2.0-preview.1` predates this interface |
 | Exit `2` | `agent catalog --command` for the failed operation | Correct required arguments, input structure, or size; use the full catalog only for an unknown command |
@@ -78,3 +87,6 @@ whether the data directory was the intended one. Include test results if code ch
 Keep API keys, invitation URLs, transcript text, and private device names out of
 public bug reports. Do not label a dummy-provider test as a successful paid-provider
 or real-device test.
+For a retrieval failure, include its status, `index_digest`, and relevant candidate
+IDs. Scores are ranking values, not correctness probabilities. Do not claim model
+quality from a single search result or a passing lexical-retrieval fixture.

@@ -1,15 +1,22 @@
 # Agent entry point
 
 Use this directory when an AI agent operates or changes Translator.
-Start with one relevant command definition. Do not automate host UI clicks.
+Start with a natural-language goal. Retrieve the relevant operation, then read its
+formal definition before execution. Do not automate host UI clicks.
 
 ```sh
-uv run --locked translator agent catalog --command runtime-start
+uv run --locked translator agent search --query "ブラウザを開かずにバックグラウンドで起動したい" --limit 3
 ```
 
-`catalog --command` returns only the selected command. Replace `runtime-start`
-with the operation you need, such as `session-create` or `settings-set`. Omit
-`--command` only to discover the complete catalog. No running Runtime is required.
+`search` works offline without a profile or running Runtime. It returns a small
+retrieval context, not a generated answer or an executed command. Read its status,
+candidate definition, prerequisites, and input sources. Then use the fixed CLI
+arguments with values obtained from actual responses.
+
+Read [Retrieval](retrieval.md) for the complete loop. `catalog --command NAME`
+remains the exact schema lookup after choosing an operation. Full `catalog` must
+be requested explicitly. Calling `translator agent` with no command, or requesting
+its general help, exposes the search entry instead of loading every command.
 [agent-interface.json](../../contracts/agent-interface.json) is the
 checked-in command contract. [index.json](index.json) is the document map.
 The [result schema](../../contracts/agent-result.schema.json) defines the response
@@ -19,6 +26,7 @@ envelope. [llms.txt](../../llms.txt) provides a compact repository entry point.
 
 | Task | Read next |
 |---|---|
+| Find an operation from a Japanese or English goal | [Retrieval and execution](retrieval.md) |
 | Start, run a local demo, and stop | [Quickstart](quickstart.md) |
 | Configure providers, start a real conversation, create an invitation | [Operations](operations.md) |
 | Change or test the code | [Repository map](repository-map.md) |
@@ -35,7 +43,7 @@ Each agent command writes one JSON object to stdout:
 {
   "schema_version": 1,
   "ok": true,
-  "command": "catalog",
+  "command": "search",
   "data": {},
   "error": null
 }
@@ -48,13 +56,17 @@ the command. A failed response has `ok: false`, `data: null`, and
 | Exit code | Meaning | Next step |
 |---|---|---|
 | `0` | Command succeeded | Read `data` |
-| `2` | Input is invalid | Fix the input using `catalog` |
+| `2` | Input is invalid | Fix the input using `catalog --command NAME` |
 | `3` | Runtime discovery or authentication failed | Check `status` for the same data directory |
 | `4` | Requested operation failed | Read the error and inspect relevant state |
 
 Proceed only when the exit code is `0` and `ok` is `true`. A timeout does not prove
 that a state change failed. Inspect state before repeating it. The CLI does not
 automatically retry mutations. A request ID is not a general exactly-once guarantee.
+
+For search, also check `data.status`: `matched`, `ambiguous`, `no_match`, or
+`unsupported`. `ok: true` only means retrieval succeeded. It does not mean an
+operation ran, that a candidate is certain, or that the requested feature exists.
 
 Use `status` for routine checks. It excludes transcript text. When captions are
 needed, use `session-snapshot --limit` with an integer from 1 to 100. The default

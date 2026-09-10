@@ -5,6 +5,7 @@ Do not scan legacy clients first when changing the current app.
 
 | Change | Implementation entry point | Relevant checks |
 |---|---|---|
+| Goal retrieval, bilingual knowledge, ranking, limitation entries | `src/translator/agent/`; start with the retrieved `source.path` | Retrieval tests and `tools/evaluate_agent_retrieval.py --check` |
 | Agent command names, arguments, JSON, exit codes | `src/translator/agent/`, `src/translator/cli.py` | `tests/test_agent.py`, `tests/test_agent_docs.py` |
 | Startup, background ownership, ports, shutdown | `src/translator/runtime.py`, `src/translator/instance.py`, `src/translator/cli.py` | `tests/test_runtime.py`, `tests/test_cli.py`, `tools/smoke_runtime.py` |
 | Named management operations and REST authorization | `src/translator/api/apps.py`, `src/translator/api/auth.py` | `tests/test_api.py`, `tests/test_contracts.py` |
@@ -17,15 +18,16 @@ Do not scan legacy clients first when changing the current app.
 | UI assets and Windows packaging | `src/translator/assets.py`, `tools/build_frontend.py`, `packaging/translator.spec`, `tools/package_release.py` | Build, source smoke, frozen smoke |
 | CI and generated contracts | `.github/workflows/ci.yml`, `tools/export_contracts.py`, `tools/export_agent_docs.py`, `contracts/` | `tests/test_contracts.py`, `tests/test_agent_docs.py`, affected CI jobs |
 
-The agent module and tests may be split as the CLI grows. `agent catalog --command`
-for the relevant operation and the
+The agent module and tests may be split as the CLI grows. Start with `agent search`
+for the task. Its source references locate the indexed knowledge. Use
+`agent catalog --command NAME` for the selected operation. This catalog and the
 checked-in [agent contract](../../contracts/agent-interface.json) are the public
 interface. Do not use a file name as an API guarantee.
 
 ## Working loop
 
 1. Read `git status --short`. Preserve unrelated changes.
-2. Read the task's row above and the relevant contract.
+2. Search for the goal, then read the task's row above and the relevant contract.
 3. Make the smallest complete change.
 4. Run the targeted checks. Use fixtures and dummy providers by default.
 5. If the CLI changed, regenerate its contract and check for unintended drift.
@@ -38,12 +40,20 @@ When the agent interface or document map changes, regenerate and verify it:
 ```sh
 uv run --locked python tools/export_agent_docs.py
 uv run --locked python tools/export_agent_docs.py --check
+uv run --locked python tools/evaluate_agent_retrieval.py --check
 ```
 
-This updates `contracts/agent-interface.json`, `contracts/agent-result.schema.json`,
-`docs/agents/index.json`, and `llms.txt`. Do not edit these generated files by hand.
+The exporter updates `contracts/agent-interface.json`,
+`contracts/agent-result.schema.json`, `contracts/agent-knowledge.json`,
+`contracts/agent-search.schema.json`, `docs/agents/index.json`, and `llms.txt`.
+Do not edit these generated files by hand.
 For Pydantic HTTP-input changes, use `tools/export_contracts.py` and its `--check`
 mode instead.
+
+When changing retrieval knowledge or ranking, inspect the evaluator's actual
+failures. Preserve the distinction between matched, ambiguous, unsupported, and
+unmatched goals. Do not make every query return a runnable command to improve a
+ranking metric. The evaluator checks retrieval cases, not a model performance claim.
 
 ## Commands from the repository root
 

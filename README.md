@@ -8,18 +8,23 @@
 
 ## AIエージェントから使う
 
-最初に [AGENTS.md](AGENTS.md) を読み、目的に応じた短い手順へ進んでください。ホストの操作には、画面のクリックではなく `translator agent` の名前付きコマンドを使います。
+最初に [AGENTS.md](AGENTS.md) を読み、自然文の目的から関連する操作を検索してください。検索結果の正式なコマンド定義・前提条件・入力値の取得元を確認し、`translator agent` の名前付きコマンドで実行します。
 
 ```sh
-uv run --locked translator agent catalog --command runtime-start
+uv run --locked translator agent search --query "ブラウザを開かずにバックグラウンドで起動したい" --limit 3
 ```
 
+- [検索結果を根拠に操作する：RAGコンテキストと実行手順](docs/agents/retrieval.md)
 - [最短手順：独立したデータディレクトリでデモを開始・確認・停止](docs/agents/quickstart.md)
 - [操作一覧：設定・実通訳・招待・公開・時間を指定したPC音声共有](docs/agents/operations.md)
 - [失敗時の復旧手順](docs/agents/troubleshooting.md) / [コードとテストの対応表](docs/agents/repository-map.md)
 - [エージェント文書の索引](docs/agents/index.md) / [機械可読索引](docs/agents/index.json) / [コマンド契約](contracts/agent-interface.json)
 
-`catalog --command` で必要な操作だけを読み、全コマンドの列挙が必要なときだけ `--command` を省略してください。各コマンドはJSONを返します。終了コードと `ok` を確認し、返されたセッションIDを次のコマンドに渡します。ポートやIDを推測せず、同じ `--data-dir` を使ってください。
+`search` は日本語・英語の説明をローカルで検索し、外部のAIエージェントが判断するためのRAGコンテキストを返します。BM25とCJK文字n-gramによる語句検索で、埋め込みモデル・ベクトルDB・外部API・内蔵の回答生成モデルは使いません。検索だけでは操作や音声取得は始まりません。
+
+検索結果の `matched`・`ambiguous`・`no_match`・`unsupported` を確認してください。曖昧な「音声を開始」から、セッション開始とPC音声共有を推測で選ばないでください。必要なら `catalog --command` で選んだ操作の正確な定義を確認できます。引数なし・一般ヘルプは検索の入口を示し、全カタログの取得は明示的な `catalog` で行います。
+
+各コマンドはJSONを返します。終了コードと `ok` を確認し、実行結果から得たセッションIDを次の操作に渡します。検索結果からID・ポート・URLを作らず、操作中は同じ `--data-dir` を使ってください。
 
 通常の状態確認には会話本文を返さない `status` を使います。字幕が必要な場合だけ `session-snapshot --limit` で取得件数を指定します（既定10件、最大100件）。Runtimeを起動しただけでは、会話・マイク・PC音声の送信は始まりません。デモは `session-create --mode demo`、実通訳は `--mode live` を明示して選びます。
 

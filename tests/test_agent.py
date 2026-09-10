@@ -109,12 +109,42 @@ def invoke(capsys, directory, *arguments):
 def test_catalog_is_offline_finite_and_help_is_json(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr("translator.agent.commands.data_directory", lambda: pytest.fail("Catalog must not resolve a profile"))
     monkeypatch.setattr("translator.agent.client.httpx.Client", lambda **kwargs: pytest.fail("Catalog must not use HTTP"))
-    assert len(catalog()["commands"]) == 18
+    assert len(catalog()["commands"]) == 19
     code, value, _ = invoke(capsys, tmp_path, "catalog")
     assert code == 0 and value["data"] == catalog()
     assert not (tmp_path / "instance.json").exists()
     assert main(["--help"]) == 0
     assert json.loads(capsys.readouterr().out)["command"] == "catalog"
+
+
+@pytest.mark.parametrize("arguments", [[], ["--help"], ["search", "--help"]])
+def test_default_entry_teaches_search_without_dumping_all_commands(monkeypatch, capsys, arguments):
+    monkeypatch.setattr("translator.agent.commands.data_directory", lambda: pytest.fail("Help must stay offline"))
+    assert main(arguments) == 0
+    value = json.loads(capsys.readouterr().out)
+    assert value["data"]["commands"] == catalog("search")["commands"]
+    assert value["data"]["discovery"]["primary_command"] == "search"
+
+
+def test_search_returns_grounded_definitions_without_runtime_or_profile(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr("translator.agent.commands.data_directory", lambda: pytest.fail("Search must not resolve a profile"))
+    monkeypatch.setattr("translator.agent.client.httpx.Client", lambda **kwargs: pytest.fail("Search must not use HTTP"))
+    profile = tmp_path / "not-created"
+    code, value, _ = invoke(capsys, profile, "search", "--query", "アプリを起動したい", "--limit", "1")
+    assert code == 0 and value["command"] == "search"
+    assert value["data"]["status"] == "matched"
+    assert len(value["data"]["candidates"]) == 1
+    assert value["data"]["candidates"][0]["definition"] == catalog("runtime-start")["commands"][0]
+    assert not profile.exists()
+
+
+@pytest.mark.parametrize("arguments", [["search"], ["search", "--query", " "],
+    ["search", "--query", "DO_NOT_ECHO" * 100], ["search", "--query", "start", "--limit", "0"],
+    ["search", "--query", "start", "--limit", "6"], ["search", "--query", "start", "--limit", "nan"]])
+def test_search_input_has_bounded_json_errors(tmp_path, capsys, arguments):
+    code, value, output = invoke(capsys, tmp_path, *arguments)
+    assert code == 2 and value["error"]["code"] == "INVALID_ARGUMENTS"
+    assert "DO_NOT_ECHO" not in output
 
 
 def test_status_authenticates_without_exposing_bootstrap_cookie_or_csrf(fake_runtime, capsys):

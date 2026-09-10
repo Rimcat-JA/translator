@@ -10,9 +10,12 @@ uv run --locked translator agent COMMAND --data-dir PATH
 it for the whole task. Do not use a guessed port or call an arbitrary URL.
 The CLI discovers and authenticates the Runtime for that directory.
 
-Read one installed argument definition with `agent catalog --command settings-set`,
-replacing `settings-set` with the operation you need. Load the full catalog only
-when you need to discover command names. Every command returns
+First use `agent search --query` to retrieve the operation for the user's goal.
+Follow the [retrieval loop](retrieval.md): check retrieval status, then read the
+candidate's formal definition, effects, prerequisites, and input sources. Use
+`agent catalog --command settings-set`, replacing `settings-set` with the selected
+name, when you need its exact schema. Full catalog loading remains explicit.
+Every operation returns
 the envelope described in [index.md](index.md). Check the exit code and `ok` before
 using `data`. Use existing user authorization for the requested work; these effect
 descriptions are not a requirement to ask permission before every operation.
@@ -21,6 +24,7 @@ descriptions are not a requirement to ask permission before every operation.
 
 | Command | Required input or state | Effect |
 |---|---|---|
+| `search` | `--query`, optional `--limit` (1–5; default 3) | Retrieve command or limitation context offline; no profile, Runtime, or execution |
 | `catalog` | Optional `--command` | Describe one selected command or the full catalog; no Runtime required |
 | `status` | Data directory | Inspect Runtime discovery, settings metadata, current session without caption text |
 | `runtime-start` | Data directory | Start or reuse a background Runtime; no browser or audio |
@@ -36,7 +40,7 @@ descriptions are not a requirement to ask permission before every operation.
 | `invite-create` | `--session-id` | Create a one-use B invitation, valid for ten minutes |
 | `diagnostics` | Running Runtime | Read diagnostic state without key values or conversation text |
 | `devices` | Running Runtime | Enumerate A output devices; report unsupported environments |
-| `tunnel-start` | Configured ngrok key and domain | Publish the participant Hub through ngrok |
+| `tunnel-start` | Configured ngrok key; domain is optional | Publish the participant Hub through ngrok |
 | `tunnel-stop` | Running Runtime | Stop the public tunnel |
 | `audio-share` | `--session-id`, `--seconds`, optional `--device-id` | Share A PC audio for a bounded duration, then stop owned capture |
 
@@ -53,6 +57,9 @@ items. Session create/start/stop responses also return at most ten captions.
 
 `runtime-start` reports `data.running` and `data.already_running`. A reused Runtime
 may already have a session. Read `status` before creating another one.
+`session-create` requires no current session or an `ended` current session.
+`session-start` starts an `idle` session; an already active session is unchanged.
+It cannot restart an `ended` session. Create a new one when that is the goal.
 
 ## Settings
 
@@ -106,10 +113,13 @@ session. Testing DeepL contacts its API. Select the proper `deepl_mode` (`free` 
 `pro`) in settings before its test.
 For ngrok, `provider-test` reports configuration; `tunnel-start` performs the actual
 connection. Do not label ngrok configuration metadata as a successful public tunnel.
+`remote_domain` is optional. When choosing one, use the domain configured for the
+user's ngrok account, without a scheme or path.
 
 ## Live conversation
 
-1. Run `runtime-start`, then `status` for the selected data directory.
+1. Search for the intended live-conversation task. Read the matched definitions and
+   prerequisites. Then run `runtime-start` and `status` for the selected directory.
 2. Configure the required keys and preferences using named commands.
 3. Run provider tests when they are part of the requested work.
 4. Create the session with explicit `--mode live`. Optional language arguments are
@@ -128,12 +138,17 @@ An invitation is a credential. Only `invite-create` needs to return that URL.
 Do not include it in unrelated logs, screenshots, diagnostics, or public issues.
 The agent CLI manages the host. It cannot grant B browser microphone permission.
 The B participant must also enable browser playback before hearing A audio.
+A live `session-start` does not validate provider keys. Gladia is needed when B
+starts transcription. DeepL is needed for enabled translation between different
+source and target languages. `waiting_for_peer` is not a provider test result.
 
 ## Headless PC audio sharing
 
 `audio-share` runs on A's Windows PC. It requires an active live session and an
 explicit duration of 1 to 3,600 seconds. Its optional device ID comes from `devices`.
 Do not invent a device ID or silently substitute a different device.
+For a vague request such as "start audio", refine the retrieval query first.
+`runtime-start`, `session-start`, and `audio-share` are not interchangeable.
 
 The command keeps its own host presence connection. The A browser page is not
 required. It runs until the duration ends, then stops the capture it owns. It
@@ -145,8 +160,8 @@ It goes to B playback. It is separate from B microphone transcription. A success
 capture command alone does not prove B heard it.
 
 Use a duration inside the calling tool's execution window. Audio duration is not
-the same as the Runtime startup/shutdown timeout. Read `catalog` for the supported
-arguments. Do not add `--timeout` to commands that do not define it.
+the same as the Runtime startup/shutdown timeout. Read `catalog --command audio-share`
+for its arguments. Do not add `--timeout` to commands that do not define it.
 
 ## Timeouts and request IDs
 
